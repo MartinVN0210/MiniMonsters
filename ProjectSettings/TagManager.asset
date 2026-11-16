@@ -14,9 +14,9 @@ TagManager:
   - 
   - 
   - Suelo
-  - 
-  - 
-  - 
+  - Ground
+  - Box
+  - Player
   - 
   - 
   - 
@@ -38,6 +38,21 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: FondoCielo
+    uniqueID: 873902
+    locked: 0
+  - name: FondoMedio
+    uniqueID: 873903
+    locked: 0
+  - name: DecoracionAtras
+    uniqueID: 873904
+    locked: 0
+  - name: Escenario
+    uniqueID: 873905
+    locked: 0
+  - name: Jugadores
+    uniqueID: 1975109623
+    locked: 0
   - name: Default
     uniqueID: 0
     locked: 0
