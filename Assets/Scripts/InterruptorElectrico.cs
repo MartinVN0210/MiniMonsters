@@ -12,6 +12,8 @@ public class InterruptorElectrico : MonoBehaviour
     private readonly HashSet<MovimientoJugador> jugadoresCercanos = new HashSet<MovimientoJugador>();
     private bool activado;
 
+    public bool Activado => activado;
+
     private void Awake()
     {
         GetComponent<Collider2D>().isTrigger = true;
@@ -54,20 +56,26 @@ public class InterruptorElectrico : MonoBehaviour
 
     private void IntentarActivar(MovimientoJugador jugador)
     {
-        if (activado || jugador.Tipo != MovimientoJugador.Protagonista.Chispa)
+        ActivarDesdeJugador(jugador);
+    }
+
+    public bool ActivarDesdeJugador(MovimientoJugador jugador)
+    {
+        if (activado || jugador == null || jugador.Tipo != MovimientoJugador.Protagonista.Chispa)
         {
-            return;
+            return false;
         }
 
         if (puente == null)
         {
             Debug.LogError("El interruptor no tiene un PuenteRoto asignado.", this);
-            return;
+            return false;
         }
 
         activado = true;
         ActualizarIndicador();
         puente.Activar();
+        return true;
     }
 
     private void ActualizarIndicador()

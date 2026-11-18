@@ -32,6 +32,11 @@ public class MovimientoJugador : MonoBehaviour
     private Animator animator;
     private SpriteRenderer spriteRenderer;
     private float entradaHorizontal;
+    private float entradaIA;
+    private bool controlHumano = true;
+    private bool saltoIASolicitado;
+    private bool interaccionIASolicitada;
+    private bool habilidadIASolicitada;
     private bool enElSuelo;
     private Collider2D colisionador;
     private ContactFilter2D filtroSuelo;
@@ -42,9 +47,22 @@ public class MovimientoJugador : MonoBehaviour
 
     public Protagonista Tipo => protagonista;
     public float EntradaHorizontal => entradaHorizontal;
+    public bool EnElSuelo => enElSuelo;
+    public bool ControlHumano => controlHumano;
+    public float Velocidad => velocidad;
+    public float FuerzaSalto => fuerzaSalto;
+    public Transform ChecadorSuelo => checadorSuelo;
+    public LayerMask CapaSuelo => capaSuelo;
+    public LayerMask CapaPared => capaPared;
+    public PhysicsMaterial2D MaterialMovimiento => colisionador == null ? null : colisionador.sharedMaterial;
+    public Animator AnimatorReferencia => animator;
+    public SpriteRenderer SpriteRendererReferencia => spriteRenderer;
+
 
     public event Action<MovimientoJugador> InteraccionPresionada;
     public event Action<MovimientoJugador> HabilidadPresionada;
+    public event Action<MovimientoJugador> SaltoEjecutado;
+
 
     private void Awake()
     {
@@ -60,44 +78,115 @@ public class MovimientoJugador : MonoBehaviour
 
     private void Update()
     {
-        Keyboard teclado = Keyboard.current;
-        if (teclado == null)
+        bool solicitarSalto = false;
+        if (controlHumano)
         {
-            entradaHorizontal = 0f;
-            enElSuelo = DetectarSuelo();
-            ActualizarParametrosAnimator();
-            return;
+            Keyboard teclado = Keyboard.current;
+            if (teclado == null)
+            {
+                entradaHorizontal = 0f;
+                enElSuelo = DetectarSuelo();
+                ActualizarParametrosAnimator();
+                return;
+            }
+
+            Key izquierda = protagonista == Protagonista.Chispa ? Key.A : Key.LeftArrow;
+            Key derecha = protagonista == Protagonista.Chispa ? Key.D : Key.RightArrow;
+            Key salto = protagonista == Protagonista.Chispa ? Key.W : Key.UpArrow;
+            Key interactuar = protagonista == Protagonista.Chispa ? Key.E : Key.Enter;
+            Key habilidad = protagonista == Protagonista.Chispa ? Key.LeftShift : Key.RightShift;
+
+            entradaHorizontal = (teclado[derecha].isPressed ? 1f : 0f)
+                                - (teclado[izquierda].isPressed ? 1f : 0f);
+            solicitarSalto = teclado[salto].wasPressedThisFrame;
+
+            if (teclado[interactuar].wasPressedThisFrame)
+            {
+                DispararInteraccion();
+            }
+
+            if (teclado[habilidad].wasPressedThisFrame)
+            {
+                DispararHabilidad();
+            }
         }
+        else
+        {
+            entradaHorizontal = entradaIA;
+            solicitarSalto = saltoIASolicitado;
+            saltoIASolicitado = false;
 
-        Key izquierda = protagonista == Protagonista.Chispa ? Key.A : Key.LeftArrow;
-        Key derecha = protagonista == Protagonista.Chispa ? Key.D : Key.RightArrow;
-        Key salto = protagonista == Protagonista.Chispa ? Key.W : Key.UpArrow;
-        Key interactuar = protagonista == Protagonista.Chispa ? Key.E : Key.Enter;
-        Key habilidad = protagonista == Protagonista.Chispa ? Key.LeftShift : Key.RightShift;
+            if (interaccionIASolicitada)
+            {
+                DispararInteraccion();
+                interaccionIASolicitada = false;
+            }
 
-        entradaHorizontal = (teclado[derecha].isPressed ? 1f : 0f)
-                            - (teclado[izquierda].isPressed ? 1f : 0f);
+            if (habilidadIASolicitada)
+            {
+                DispararHabilidad();
+                habilidadIASolicitada = false;
+            }
+        }
 
         enElSuelo = DetectarSuelo();
 
-        if (teclado[salto].wasPressedThisFrame && enElSuelo)
+        if (solicitarSalto && enElSuelo)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, fuerzaSalto);
-        }
+            SaltoEjecutado?.Invoke(this);
 
-        if (teclado[interactuar].wasPressedThisFrame)
-        {
-            alInteractuar.Invoke();
-            InteraccionPresionada?.Invoke(this);
-        }
-
-        if (teclado[habilidad].wasPressedThisFrame)
-        {
-            alUsarHabilidad.Invoke();
-            HabilidadPresionada?.Invoke(this);
         }
 
         ActualizarParametrosAnimator();
+    }
+
+    public void ConfigurarControlHumano(bool habilitado)
+    {
+        controlHumano = habilitado;
+        entradaIA = 0f;
+        entradaHorizontal = 0f;
+        saltoIASolicitado = false;
+        interaccionIASolicitada = false;
+        habilidadIASolicitada = false;
+    }
+
+public void EstablecerEntradaIA(float horizontal, bool saltar)
+    {
+        if (!controlHumano)
+        {
+            entradaIA = Mathf.Clamp(horizontal, -1f, 1f);
+            entradaHorizontal = entradaIA;
+            saltoIASolicitado |= saltar;
+        }
+    }
+
+    public void SolicitarInteraccionIA()
+    {
+        if (!controlHumano)
+        {
+            interaccionIASolicitada = true;
+        }
+    }
+
+    public void SolicitarHabilidadIA()
+    {
+        if (!controlHumano)
+        {
+            habilidadIASolicitada = true;
+        }
+    }
+
+    public void DispararInteraccion()
+    {
+        alInteractuar.Invoke();
+        InteraccionPresionada?.Invoke(this);
+    }
+
+    public void DispararHabilidad()
+    {
+        alUsarHabilidad.Invoke();
+        HabilidadPresionada?.Invoke(this);
     }
 
     private void ActualizarParametrosAnimator()
@@ -111,25 +200,24 @@ public class MovimientoJugador : MonoBehaviour
         animator.SetBool(IsGroundedParameter, enElSuelo);
     }
 
-    private bool DetectarSuelo()
+private bool DetectarSuelo()
     {
         if (checadorSuelo == null)
         {
             return false;
         }
 
-        float ancho = colisionador == null ? 0.01f : colisionador.bounds.size.x * 0.7f;
-        Vector2 tamano = new Vector2(Mathf.Max(0.01f, ancho), 0.06f);
-        int cantidad = Physics2D.OverlapBox(checadorSuelo.position, tamano, 0f, filtroSuelo, resultadosDeteccionSuelo);
-        for (int i = 0; i < cantidad; i++)
+        float ancho = colisionador == null ? 0.05f : colisionador.bounds.size.x * 0.7f;
+        Vector2 centro = (Vector2)checadorSuelo.position + Vector2.down * 0.03f;
+        Vector2 tamano = new Vector2(Mathf.Max(0.05f, ancho), 0.18f);
+        Collider2D[] hits = Physics2D.OverlapBoxAll(centro, tamano, 0f, LayerMask.GetMask("Ground", "Box"));
+        for (int i = 0; i < hits.Length; i++)
         {
-            Collider2D hit = resultadosDeteccionSuelo[i];
-            if (hit == null || hit == colisionador || hit.attachedRigidbody == rb || hit.isTrigger)
+            Collider2D hit = hits[i];
+            if (hit != null && !hit.isTrigger && hit != colisionador && hit.attachedRigidbody != rb)
             {
-                continue;
+                return true;
             }
-
-            return true;
         }
 
         return false;

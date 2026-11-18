@@ -13,6 +13,13 @@ public class GameManager : MonoBehaviour
     private static GameManager instancia;
     private static int vidasCompartidas = -1;
     private static bool transicionMuerte;
+    private static float proximaMuertePermitida;
+
+    private Vector2 ultimoCheckpoint;
+    private bool checkpointRegistrado;
+    private Checkpoint checkpointActivo;
+    private Transform chispa;
+    private Transform roca;
 
     public static GameManager Instancia
     {
@@ -34,6 +41,7 @@ public class GameManager : MonoBehaviour
     public int VidasMaximas => vidasMaximas;
     public bool NivelCompletado { get; private set; }
     public bool GameOver { get; private set; }
+    public Vector2 UltimoCheckpoint => ultimoCheckpoint;
 
     public event Action EstadoActualizado;
     public event Action GameOverIniciado;
@@ -44,6 +52,7 @@ public class GameManager : MonoBehaviour
         instancia = null;
         vidasCompartidas = -1;
         transicionMuerte = false;
+        proximaMuertePermitida = 0f;
     }
 
     private void Awake()
@@ -55,17 +64,28 @@ public class GameManager : MonoBehaviour
         }
 
         instancia = this;
-        if (vidasCompartidas < 0)
-        {
-            vidasCompartidas = vidasMaximas;
-        }
+        vidasCompartidas = vidasMaximas;
 
         Estrellas = 0;
         EnergiaRecolectada = 0;
         NivelCompletado = false;
         GameOver = false;
         transicionMuerte = false;
+        proximaMuertePermitida = 0f;
+        Time.timeScale = 1f;
         ActualizarTextoEstrellas();
+    }
+
+    private void Start()
+    {
+        GameObject chispaObjeto = GameObject.Find("Chispa");
+        GameObject rocaObjeto = GameObject.Find("Roca");
+        chispa = chispaObjeto != null ? chispaObjeto.transform : null;
+        roca = rocaObjeto != null ? rocaObjeto.transform : null;
+        if (chispa != null && roca != null)
+        {
+            ultimoCheckpoint = ((Vector2)chispa.position + (Vector2)roca.position) * 0.5f;
+        }
     }
 
     private void OnEnable()
@@ -109,12 +129,13 @@ public class GameManager : MonoBehaviour
 
     public void PerderVida()
     {
-        if (GameOver || transicionMuerte)
+        if (GameOver || transicionMuerte || Time.unscaledTime < proximaMuertePermitida)
         {
             return;
         }
 
         transicionMuerte = true;
+        proximaMuertePermitida = Time.unscaledTime + 0.75f;
         vidasCompartidas = Mathf.Max(0, vidasCompartidas - 1);
         ActualizarTextoEstrellas();
 
@@ -126,7 +147,73 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        ReaparecerEnCheckpoint();
+        transicionMuerte = false;
+    }
+
+    public void RegistrarCheckpoint(Checkpoint checkpoint)
+    {
+        if (checkpoint == null)
+        {
+            Debug.LogError("No se puede registrar un checkpoint nulo.", this);
+            return;
+        }
+
+        if (checkpointActivo != null && checkpointActivo != checkpoint)
+        {
+            checkpointActivo.Desactivar();
+        }
+
+        checkpointActivo = checkpoint;
+        ultimoCheckpoint = checkpoint.transform.position;
+        checkpointRegistrado = true;
+        EstadoActualizado?.Invoke();
+    }
+
+    public void ReaparecerEnCheckpoint()
+    {
+        if (chispa == null || roca == null)
+        {
+            GameObject chispaObjeto = GameObject.Find("Chispa");
+            GameObject rocaObjeto = GameObject.Find("Roca");
+            chispa = chispaObjeto != null ? chispaObjeto.transform : null;
+            roca = rocaObjeto != null ? rocaObjeto.transform : null;
+        }
+
+        if (chispa == null || roca == null)
+        {
+            Debug.LogError("No se pudieron encontrar Chispa y Roca para reaparecer.", this);
+            return;
+        }
+
+        if (!checkpointRegistrado && ultimoCheckpoint == Vector2.zero)
+        {
+            ultimoCheckpoint = ((Vector2)chispa.position + (Vector2)roca.position) * 0.5f;
+        }
+
+        ReubicarJugador(chispa, ultimoCheckpoint + Vector2.left * 0.5f);
+        ReubicarJugador(roca, ultimoCheckpoint + Vector2.right * 0.5f);
+    }
+
+    private void ReubicarJugador(Transform jugador, Vector2 posicion)
+    {
+        Rigidbody2D rb = jugador.GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.position = posicion;
+        }
+        else
+        {
+            jugador.position = posicion;
+        }
+
+        MovimientoJugador movimiento = jugador.GetComponent<MovimientoJugador>();
+        if (movimiento != null)
+        {
+            movimiento.ConfigurarControlHumano(movimiento.ControlHumano);
+        }
     }
 
     public void RecuperarVida()
@@ -144,6 +231,7 @@ public class GameManager : MonoBehaviour
     {
         vidasCompartidas = vidasMaximas;
         transicionMuerte = false;
+        proximaMuertePermitida = 0f;
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }

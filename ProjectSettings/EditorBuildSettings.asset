@@ -6,8 +6,17 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/MainMenuScene.unity
+    guid: 8a7cac0905803444e967ceed5a6a429a
+  - enabled: 1
     path: Assets/Scenes/Nivel1_Parque.unity
     guid: 8951cf096bc06394f8ebd488962e22bf
+  - enabled: 1
+    path: Assets/Scenes/Nivel2_Fabrica.unity
+    guid: 24b3b5314c2c99c4386156e6a8e6e5f5
+  - enabled: 1
+    path: Assets/Scenes/Nivel3_Averia.unity
+    guid: 8d6dcf7d8eb90c54eb20b993cfa34e57
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
