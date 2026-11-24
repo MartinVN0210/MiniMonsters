@@ -75,6 +75,13 @@ public class InterruptorElectrico : MonoBehaviour
         activado = true;
         ActualizarIndicador();
         puente.Activar();
+
+        GameManager manager = GameManager.Instancia;
+        if (manager != null)
+        {
+            manager.ReproducirSonidoInterruptor();
+        }
+
         return true;
     }
 

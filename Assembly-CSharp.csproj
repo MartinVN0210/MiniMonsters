@@ -68,6 +68,7 @@
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\Benchmark02.cs" />
     <Compile Include="Assets\Scripts\Checkpoint.cs" />
     <Compile Include="Assets\Scripts\AICompanion.cs" />
+    <Compile Include="Assets\Scripts\AudioManager.cs" />
     <Compile Include="Assets\Scripts\GameModeManager.cs" />
     <Compile Include="Assets\Scripts\ParallaxInfinito.cs" />
     <Compile Include="Assets\Scripts\EstrellaColeccionable.cs" />

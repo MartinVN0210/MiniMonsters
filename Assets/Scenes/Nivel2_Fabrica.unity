@@ -8188,7 +8188,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -48, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 78, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &258865516
@@ -11673,7 +11673,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1306777824
 RectTransform:
   m_ObjectHideFlags: 0
@@ -12985,6 +12985,7 @@ MonoBehaviour:
   sliderFondo: {fileID: 4589310165157021836, guid: cbcb713703894044ab575f26b55109b5, type: 3}
   sliderRelleno: {fileID: 913517620688942745, guid: c47fa377e40511b498042af498f46e37, type: 3}
   sliderPerilla: {fileID: -127188477792676979, guid: a16fe68dedf81ff41a0825c5b0f2ddd5, type: 3}
+  clickBotonClip: {fileID: 8300000, guid: 850f70b15847ce64da0f9a415d0a8c7d, type: 3}
 --- !u!1 &1621511840
 GameObject:
   m_ObjectHideFlags: 0

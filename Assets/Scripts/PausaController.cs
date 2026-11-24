@@ -13,6 +13,9 @@ public class PausaController : MonoBehaviour
     public Sprite sliderRelleno;
     public Sprite sliderPerilla;
 
+    [Header("Audio de interfaz")]
+    [SerializeField] private AudioClip clickBotonClip;
+
     private GameObject panelPausa;
     private GameObject panelAjustes;
     private Button botonHUDPausa;
@@ -63,6 +66,12 @@ public class PausaController : MonoBehaviour
         if (panelAjustes.activeSelf)
         {
             MostrarAjustes(false);
+            return;
+        }
+
+        if (panelPausa.activeSelf)
+        {
+            Reanudar();
             return;
         }
 
@@ -138,10 +147,8 @@ public class PausaController : MonoBehaviour
         MenuUIFactory.CreateButton(panelAjustes.transform, "Regresar", "REGRESAR", botonRojo,
             new Vector2(340f, 90f), new Vector2(0f, -230f), () => MostrarAjustes(false), 32);
 
-        panelPausa.transform.Find("Reanudar").GetComponent<Button>().onClick.AddListener(Reanudar);
-        panelPausa.transform.Find("Ajustes").GetComponent<Button>().onClick.AddListener(() => MostrarAjustes(true));
-        panelPausa.transform.Find("MenuPrincipal").GetComponent<Button>().onClick.AddListener(VolverAlMenu);
-        panelAjustes.transform.Find("Regresar").GetComponent<Button>().onClick.AddListener(() => MostrarAjustes(false));
+        RegistrarSonidosBotones(panelPausa);
+        RegistrarSonidosBotones(panelAjustes);
         panelPausa.SetActive(false);
         panelAjustes.SetActive(false);
         construido = true;
@@ -164,6 +171,19 @@ public class PausaController : MonoBehaviour
     {
         Image panel = MenuUIFactory.CreateImage(parent, name, sprite, size, Vector2.zero, true);
         panel.color = Color.white;
+    }
+
+    private void RegistrarSonidosBotones(GameObject panel)
+    {
+        if (clickBotonClip == null || panel == null)
+        {
+            return;
+        }
+
+        foreach (Button button in panel.GetComponentsInChildren<Button>(true))
+        {
+            button.onClick.AddListener(() => AudioManager.Instancia.ReproducirSFX(clickBotonClip));
+        }
     }
 
     private void MostrarAjustes(bool visible)

@@ -118,10 +118,7 @@ public class GameManager : MonoBehaviour
 
     public void ReproducirSFX(AudioClip clip, float volumen = 1f)
     {
-        if (audioSourceSFX != null && clip != null)
-        {
-            audioSourceSFX.PlayOneShot(clip, volumen);
-        }
+        AudioManager.Instancia.ReproducirSFX(clip, volumen);
     }
 
     public void ReproducirSonidoSalto(AudioClip clipPersonalizado = null)

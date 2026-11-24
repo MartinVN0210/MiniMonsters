@@ -26,13 +26,23 @@ public class MainMenuController : MonoBehaviour
     [Header("Audio")]
     [SerializeField] private AudioSource musicaAudioSource;
     [SerializeField] private AudioSource[] sfxAudioSources;
+    [SerializeField] private AudioClip clickBotonClip;
+    [SerializeField] private AudioClip iniciarPartidaClip;
 
     private GameObject panelPrincipal;
     private GameObject panelModo;
     [SerializeField] private GameObject panelSeleccionNivel;
     private GameObject panelInstrucciones;
     private TMP_Text tituloInstrucciones;
-    private TMP_Text controlesInstrucciones;
+    private GameObject bannerControlesUnificados;
+    private GameObject tarjetaChispa;
+    private GameObject tarjetaRoca;
+    private TMP_Text descripcionChispa;
+    private TMP_Text descripcionRoca;
+    private TMP_Text tituloTarjetaChispa;
+    private TMP_Text tituloTarjetaRoca;
+    private GameObject controlesChispa;
+    private GameObject controlesRoca;
     private string escenaSeleccionada;
     private GameObject panelAjustes;
     private GameObject panelAcercaDe;
@@ -41,6 +51,7 @@ public class MainMenuController : MonoBehaviour
     private void Awake()
     {
         Time.timeScale = 1f;
+        AudioManager.Instancia.RegistrarClipsUI(clickBotonClip, iniciarPartidaClip);
         CrearInterfaz();
     }
 
@@ -92,6 +103,21 @@ public class MainMenuController : MonoBehaviour
 
         AudioPreferences.ApplyVolumes();
         AplicarVolumenEnEscena(AudioPreferences.MusicVolume, AudioPreferences.SfxVolume);
+        RegistrarSonidosBotones(canvas.transform);
+    }
+
+    private void RegistrarSonidosBotones(Transform raiz)
+    {
+        Button[] botones = raiz.GetComponentsInChildren<Button>(true);
+        foreach (Button boton in botones)
+        {
+            if (boton == null || boton.name == "Btn_IniciarPartida")
+            {
+                continue;
+            }
+
+            boton.onClick.AddListener(AudioManager.Instancia.ReproducirClickBoton);
+        }
     }
 
     private Canvas CrearCanvas()
@@ -156,8 +182,8 @@ public class MainMenuController : MonoBehaviour
             new Vector2(350f, 86f), new Vector2(330f, 105f), () => Mostrar(panelAjustes), 32);
         MenuUIFactory.CreateButton(parent, "AcercaDe", "ACERCA DE", botonMorado,
             new Vector2(350f, 86f), new Vector2(330f, -40f), () => Mostrar(panelAcercaDe), 30);
-        MenuUIFactory.CreateButton(parent, "Salir", "SALIR", botonRojo,
-            new Vector2(350f, 86f), new Vector2(330f, -185f), Salir, 32);
+        CrearBotonTMP(parent, "Btn_SalirJuego", "SALIR DEL JUEGO", botonRojo,
+            new Vector2(350f, 86f), new Vector2(330f, -185f), 28f, SalirDelJuego, 85f, 24f);
     }
 
     private void CrearSeleccionModo(Transform parent)
@@ -191,47 +217,182 @@ public class MainMenuController : MonoBehaviour
     private void CrearPanelInstrucciones(Transform parent)
     {
         tituloInstrucciones = (TMP_Text)CrearTextoTMP(parent, "Titulo", "",
-            40f, new Vector2(1300f, 90f), new Vector2(0f, 360f), 0.38f,
+            44f, new Vector2(1300f, 90f), new Vector2(0f, 360f), 0.32f,
             new Vector4(0f, 0f, 0f, 0f));
+        tituloInstrucciones.color = new Color(1f, 253f / 255f, 240f / 255f, 1f);
+        tituloInstrucciones.fontStyle = FontStyles.Bold;
+        tituloInstrucciones.outlineWidth = 0.32f;
+        tituloInstrucciones.outlineColor = Color.black;
+        AplicarSombraTMP(tituloInstrucciones);
 
-        CrearTarjetaInstrucciones(parent, "TarjetaChispa", "CHISPA",
-            "ACTIVA BOTONES Y PUENTES", chispaIdle, new Vector2(-405f, 125f));
-        CrearTarjetaInstrucciones(parent, "TarjetaRoca", "ROCA",
-            "EMPUJA Y MUEVE CAJAS", rocaIdle, new Vector2(405f, 125f));
+        CrearTarjetaInstrucciones(parent, "Tarjeta_Chispa", "JUGADOR 1: CHISPA",
+            "ACTIVA BOTONES Y PUENTES", chispaIdle, new Vector2(-405f, 125f),
+            out tarjetaChispa, out tituloTarjetaChispa, out descripcionChispa, out controlesChispa);
+        CrearTarjetaInstrucciones(parent, "Tarjeta_Roca", "JUGADOR 2: ROCA",
+            "EMPUJA Y MUEVE CAJAS", rocaIdle, new Vector2(405f, 125f),
+            out tarjetaRoca, out tituloTarjetaRoca, out descripcionRoca, out controlesRoca);
 
-        Image banner = MenuUIFactory.CreateImage(parent, "BannerControles", tarjetaSeleccion,
-            new Vector2(1260f, 190f), new Vector2(0f, -125f), true);
-        controlesInstrucciones = (TMP_Text)CrearTextoTMP(banner.transform, "Controles",
-            "", 28f, new Vector2(1180f, 150f), Vector2.zero, 0.22f,
-            new Vector4(16f, 0f, 16f, 0f));
+        CrearControlesUnificados(parent);
 
         CrearBotonTMP(parent, "Btn_IniciarPartida", "¡INICIAR PARTIDA!", botonVerde,
-            new Vector2(460f, 92f), new Vector2(280f, -355f), 30f, IniciarEscenaSeleccionada);
+            new Vector2(460f, 92f), new Vector2(210f, -360f), 30f, IniciarEscenaSeleccionada, 95f, 30f);
         CrearBotonTMP(parent, "Btn_RegresarInstrucciones", "REGRESAR", botonRojo,
-            new Vector2(280f, 85f), new Vector2(-300f, -355f), 30f,
-            () => Mostrar(panelSeleccionNivel));
+            new Vector2(340f, 92f), new Vector2(-250f, -360f), 30f,
+            () => Mostrar(panelSeleccionNivel), 85f, 30f);
     }
 
     private void CrearTarjetaInstrucciones(Transform parent, string name, string titulo,
-        string descripcion, Sprite personaje, Vector2 position)
+        string descripcion, Sprite personaje, Vector2 position,
+        out GameObject cardObject, out TMP_Text titleText, out TMP_Text descriptionText,
+        out GameObject controlsObject)
     {
         Image card = MenuUIFactory.CreateImage(parent, name, tarjetaSeleccion,
-            new Vector2(650f, 250f), position, true);
+            new Vector2(470f, 295f), position, true);
+        cardObject = card.gameObject;
 
         if (personaje != null)
         {
             Image character = MenuUIFactory.CreateImage(card.transform, "Personaje", personaje,
-                new Vector2(150f, 150f), new Vector2(0f, 42f));
+                new Vector2(150f, 115f), new Vector2(0f, 78f));
             character.preserveAspect = true;
             character.raycastTarget = false;
         }
 
-        CrearTextoTMP(card.transform, "Titulo", titulo, 34f,
-            new Vector2(600f, 55f), new Vector2(0f, -48f), 0.28f,
-            new Vector4(10f, 0f, 10f, 0f));
-        CrearTextoTMP(card.transform, "Descripcion", descripcion, 23f,
-            new Vector2(620f, 50f), new Vector2(0f, -92f), 0.18f,
-            new Vector4(8f, 0f, 8f, 0f));
+        titleText = (TMP_Text)CrearTextoTMP(card.transform, "Titulo", titulo, 30f,
+            new Vector2(430f, 48f), new Vector2(0f, -12f), 0f,
+            new Vector4(0f, 0f, 0f, 0f));
+        titleText.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        titleText.fontStyle = FontStyles.Bold;
+        titleText.outlineWidth = 0f;
+
+        descriptionText = (TMP_Text)CrearTextoTMP(card.transform, "Descripcion", descripcion, 22f,
+            new Vector2(420f, 55f), new Vector2(0f, -62f), 0f,
+            new Vector4(0f, 0f, 0f, 0f));
+        descriptionText.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        descriptionText.fontStyle = FontStyles.Bold;
+        descriptionText.outlineWidth = 0f;
+
+        controlsObject = new GameObject("ControlesDosJugadores", typeof(RectTransform));
+        controlsObject.transform.SetParent(card.transform, false);
+        RectTransform controlsRect = controlsObject.GetComponent<RectTransform>();
+        controlsRect.anchorMin = new Vector2(0.5f, 0.5f);
+        controlsRect.anchorMax = new Vector2(0.5f, 0.5f);
+        controlsRect.pivot = new Vector2(0.5f, 0.5f);
+        controlsRect.sizeDelta = new Vector2(430f, 145f);
+        controlsRect.anchoredPosition = new Vector2(0f, -58f);
+    }
+
+    private void CrearControlesUnificados(Transform parent)
+    {
+        Image banner = MenuUIFactory.CreateImage(parent, "Banner_ControlesUnificados", tarjetaSeleccion,
+            new Vector2(980f, 145f), new Vector2(0f, -125f), true);
+        bannerControlesUnificados = banner.gameObject;
+
+        CrearGrupoControles(banner.transform, "Movimiento",
+            new string[] { "W", "A", "S", "D" },
+            "MOVER Y\nSALTAR", new Vector2(-395f, 0f), 150f,
+            Vector2.zero, new Vector2(120f, 0f), new Vector2(140f, 70f),
+            true);
+        CrearGrupoControles(banner.transform, "Interactuar",
+            new string[] { "SHIFT" },
+            "INTERACTUAR", new Vector2(-115f, 0f), 92f,
+            Vector2.zero, new Vector2(140f, 0f), new Vector2(175f, 70f),
+            false);
+        CrearGrupoControles(banner.transform, "Cambiar",
+            new string[] { "ALT" },
+            "CAMBIAR\nPERSONAJE", new Vector2(165f, 0f), 92f,
+            Vector2.zero, new Vector2(125f, 0f), new Vector2(155f, 70f),
+            false);
+    }
+
+    private void CrearGrupoControles(Transform parent, string name, string[] teclas,
+        string descripcion, Vector2 position, float teclasWidth,
+        Vector2 keysPosition, Vector2 descriptionPosition, Vector2 descriptionSize,
+        bool wasd)
+    {
+        RectTransform group = MenuUIFactory.CreateRect(parent, name,
+            new Vector2(300f, 125f), position);
+
+        RectTransform keysRoot = MenuUIFactory.CreateRect(group, "Teclas",
+            new Vector2(teclas.Length == 4 ? 150f : teclasWidth, teclas.Length == 4 ? 92f : 44f),
+            keysPosition);
+
+        if (wasd)
+        {
+            keysRoot.localScale = new Vector3(0.85f, 0.85f, 1f);
+        }
+
+        if (teclas.Length == 4)
+        {
+            EstilizarTecla(keysRoot, "W", "W", 48f, new Vector2(0f, 22f));
+            EstilizarTecla(keysRoot, "A", "A", 48f, new Vector2(-52f, -26f));
+            EstilizarTecla(keysRoot, "S", "S", 48f, new Vector2(0f, -26f));
+            EstilizarTecla(keysRoot, "D", "D", 48f, new Vector2(52f, -26f));
+        }
+        else
+        {
+            EstilizarTecla(keysRoot, "Tecla", teclas[0], teclasWidth, Vector2.zero, 44f);
+        }
+
+        TMP_Text descripcionTMP = CrearTextoTMP(group, "Descripcion", descripcion,
+            20f, descriptionSize, descriptionPosition,
+            0f, new Vector4(0f, 0f, 0f, 0f));
+        descripcionTMP.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        descripcionTMP.fontStyle = FontStyles.Bold;
+        descripcionTMP.outlineWidth = 0f;
+        descripcionTMP.alignment = TextAlignmentOptions.Left;
+        descripcionTMP.textWrappingMode = TextWrappingModes.Normal;
+    }
+
+    private void EstilizarTecla(Transform parent, string name, string label,
+        float width, Vector2 position, float height = 48f)
+    {
+        RectTransform keyRect = MenuUIFactory.CreateRect(parent, name,
+            new Vector2(width, height), position);
+        Image keyImage = keyRect.gameObject.AddComponent<Image>();
+        keyImage.color = new Color(216f / 255f, 195f / 255f, 158f / 255f, 1f);
+
+        Outline outline = keyRect.gameObject.AddComponent<Outline>();
+        outline.effectColor = new Color(92f / 255f, 58f / 255f, 33f / 255f, 1f);
+        outline.effectDistance = new Vector2(2f, -2f);
+
+        Shadow shadow = keyRect.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(59f / 255f, 35f / 255f, 20f / 255f, 0.9f);
+        shadow.effectDistance = new Vector2(0f, -3f);
+
+        TMP_Text keyText = (TMP_Text)CrearTextoTMP(keyRect, "Texto", label,
+            label.Length > 5 ? 16f : 22f, keyRect.sizeDelta, Vector2.zero, 0f,
+            new Vector4(0f, 0f, 0f, 0f));
+        keyText.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        keyText.fontStyle = FontStyles.Bold;
+        keyText.outlineWidth = 0f;
+    }
+
+    private void AplicarSombraTMP(TMP_Text text)
+    {
+        if (text == null)
+        {
+            return;
+        }
+
+        Material material = text.fontMaterial;
+        if (material != null)
+        {
+            material.EnableKeyword("UNDERLAY_ON");
+            material.SetColor("_UnderlayColor", Color.black);
+            material.SetFloat("_UnderlayOffsetX", 0.35f);
+            material.SetFloat("_UnderlayOffsetY", -0.35f);
+            material.SetFloat("_UnderlayDilate", 0.45f);
+            material.SetFloat("_UnderlaySoftness", 0f);
+        }
+
+        Shadow shadow = text.gameObject.GetComponent<Shadow>();
+        if (shadow == null)
+        {
+            shadow = text.gameObject.AddComponent<Shadow>();
+        }
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.75f);
+        shadow.effectDistance = new Vector2(3f, -4f);
     }
 
     private TMP_Text CrearTextoTMP(Transform parent, string name, string value, float fontSize,
@@ -257,7 +418,8 @@ public class MainMenuController : MonoBehaviour
     }
 
     private Button CrearBotonTMP(Transform parent, string name, string label, Sprite sprite,
-        Vector2 size, Vector2 position, float fontSize, UnityEngine.Events.UnityAction action)
+        Vector2 size, Vector2 position, float fontSize, UnityEngine.Events.UnityAction action,
+        float rightMargin = 24f, float leftMargin = 24f)
     {
         Image image = MenuUIFactory.CreateImage(parent, name, sprite, size, position, true);
         Button button = image.gameObject.AddComponent<Button>();
@@ -265,7 +427,7 @@ public class MainMenuController : MonoBehaviour
         button.onClick.AddListener(action);
         TMP_Text text = CrearTextoTMP(image.transform, "Label", label, fontSize,
             size - new Vector2(32f, 12f), Vector2.zero, 0.3f,
-            new Vector4(24f, 0f, 95f, 0f));
+            new Vector4(leftMargin, 0f, rightMargin, 0f));
         text.color = Color.white;
         text.textWrappingMode = TextWrappingModes.NoWrap;
         return button;
@@ -303,7 +465,7 @@ public class MainMenuController : MonoBehaviour
             sliderPerilla, initialMusic, OnMusicSliderChanged,
             new Vector2(0f, 95f));
 
-        MenuUIFactory.CreateSlider(parent, "SliderSonidos", "SONIDO", sliderFondo, sliderRelleno,
+        MenuUIFactory.CreateSlider(parent, "SliderSonidos", "SONIDOS", sliderFondo, sliderRelleno,
             sliderPerilla, initialSfx, OnSfxSliderChanged,
             new Vector2(0f, -65f));
 
@@ -420,19 +582,163 @@ public class MainMenuController : MonoBehaviour
     private void ActualizarInstrucciones()
     {
         int modo = PlayerPrefs.GetInt("ModoJugadores", 2);
+        bool dosJugadores = modo == 2;
+        ConfigurarTarjetasPorModo(dosJugadores);
         if (tituloInstrucciones != null)
         {
-            tituloInstrucciones.text = modo == 1
+            tituloInstrucciones.text = dosJugadores == false
                 ? "CONTROLES (MODO 1 JUGADOR)"
                 : "CONTROLES (MODO 2 JUGADORES)";
         }
 
-        if (controlesInstrucciones != null)
+        if (tituloTarjetaChispa != null)
         {
-            controlesInstrucciones.text = modo == 1
-                ? "[W A S D] MOVER Y SALTAR  |  [SHIFT] INTERACTUAR  |  [ALT] CAMBIAR PERSONAJE"
-                : "CHISPA: [W A S D] + [SHIFT]   |   ROCA: [FLECHAS] + [ENTER / R-SHIFT]";
+            tituloTarjetaChispa.text = dosJugadores ? "JUGADOR 1: CHISPA" : "CHISPA";
         }
+        if (tituloTarjetaRoca != null)
+        {
+            tituloTarjetaRoca.text = dosJugadores ? "JUGADOR 2: ROCA" : "ROCA";
+        }
+        if (descripcionChispa != null)
+        {
+            descripcionChispa.gameObject.SetActive(!dosJugadores);
+            descripcionChispa.text = "ACTIVA BOTONES Y PUENTES";
+        }
+        if (descripcionRoca != null)
+        {
+            descripcionRoca.gameObject.SetActive(!dosJugadores);
+            descripcionRoca.text = "EMPUJA Y MUEVE CAJAS";
+        }
+        if (controlesChispa != null)
+        {
+            controlesChispa.SetActive(dosJugadores);
+            ConfigurarTarjetaDosJugadores(controlesChispa.transform,
+                new[] { "W", "A", "S", "D" }, "MOVER Y SALTAR",
+                "SHIFT IZQ", "ACTIVAR BOTONES\nY PUENTES", false);
+        }
+        if (controlesRoca != null)
+        {
+            controlesRoca.SetActive(dosJugadores);
+            ConfigurarTarjetaDosJugadores(controlesRoca.transform,
+                new[] { "▲", "◄", "▼", "►" }, "MOVER Y SALTAR",
+                "SHIFT DER", "EMPUJAR Y\nMOVER CAJAS", true);
+        }
+        if (bannerControlesUnificados != null)
+        {
+            bannerControlesUnificados.SetActive(!dosJugadores);
+        }
+    }
+
+    private void ConfigurarTarjetasPorModo(bool dosJugadores)
+    {
+        ConfigurarTarjetaLayout(tarjetaChispa, tituloTarjetaChispa, dosJugadores,
+            new Vector2(-285f, 10f));
+        ConfigurarTarjetaLayout(tarjetaRoca, tituloTarjetaRoca, dosJugadores,
+            new Vector2(285f, 10f));
+    }
+
+    private void ConfigurarTarjetaLayout(GameObject tarjeta, TMP_Text titulo, bool dosJugadores,
+        Vector2 dosJugadoresPosition)
+    {
+        if (tarjeta == null)
+        {
+            return;
+        }
+
+        RectTransform cardRect = tarjeta.GetComponent<RectTransform>();
+        cardRect.sizeDelta = dosJugadores
+            ? new Vector2(500f, 440f)
+            : new Vector2(470f, 295f);
+        cardRect.anchoredPosition = dosJugadores
+            ? dosJugadoresPosition
+            : new Vector2(dosJugadoresPosition.x < 0f ? -405f : 405f, 105f);
+
+        Transform character = tarjeta.transform.Find("Personaje");
+        if (character != null)
+        {
+            RectTransform characterRect = character.GetComponent<RectTransform>();
+            characterRect.sizeDelta = dosJugadores
+                ? new Vector2(150f, 105f)
+                : new Vector2(150f, 115f);
+            characterRect.anchoredPosition = dosJugadores
+                ? new Vector2(0f, 135f)
+                : new Vector2(0f, 78f);
+        }
+
+        if (titulo != null)
+        {
+            RectTransform titleRect = titulo.rectTransform;
+            titleRect.sizeDelta = dosJugadores
+                ? new Vector2(470f, 45f)
+                : new Vector2(430f, 48f);
+            titleRect.anchoredPosition = dosJugadores
+                ? new Vector2(0f, 48f)
+                : new Vector2(0f, -12f);
+            titulo.fontSize = dosJugadores ? 26f : 30f;
+        }
+
+        Transform controls = tarjeta.transform.Find("ControlesDosJugadores");
+        if (controls != null)
+        {
+            RectTransform controlsRect = controls.GetComponent<RectTransform>();
+            controlsRect.sizeDelta = new Vector2(430f, 260f);
+            controlsRect.anchoredPosition = Vector2.zero;
+        }
+    }
+
+    private void ConfigurarTarjetaDosJugadores(Transform root, string[] teclas,
+        string descripcionMovimiento, string teclaAccion, string descripcionAccion,
+        bool flechas)
+    {
+        foreach (Transform child in root)
+        {
+            Destroy(child.gameObject);
+        }
+
+        Vector2[] keyPositions =
+        {
+            new Vector2(-115f, -18f),
+            new Vector2(-149f, -52f),
+            new Vector2(-115f, -52f),
+            new Vector2(-81f, -52f)
+        };
+        for (int i = 0; i < teclas.Length; i++)
+        {
+            EstilizarTecla(root, "Tecla" + i, teclas[i], 34f, keyPositions[i], 34f);
+        }
+
+        TMP_Text movimiento = CrearTextoTMP(root, "Movimiento", descripcionMovimiento, 20f,
+            new Vector2(190f, 55f), new Vector2(75f, -35f), 0f,
+            new Vector4(0f, 0f, 0f, 0f));
+        movimiento.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        movimiento.alignment = TextAlignmentOptions.Left;
+        movimiento.outlineWidth = 0f;
+
+        RectTransform actionKey = MenuUIFactory.CreateRect(root, "TeclaAccion",
+            new Vector2(130f, 42f), new Vector2(-115f, -125f));
+        Image actionImage = actionKey.gameObject.AddComponent<Image>();
+        actionImage.color = new Color(216f / 255f, 195f / 255f, 158f / 255f, 1f);
+        Outline actionOutline = actionKey.gameObject.AddComponent<Outline>();
+        actionOutline.effectColor = new Color(92f / 255f, 58f / 255f, 33f / 255f, 1f);
+        actionOutline.effectDistance = new Vector2(2f, -2f);
+        Shadow actionShadow = actionKey.gameObject.AddComponent<Shadow>();
+        actionShadow.effectColor = new Color(59f / 255f, 35f / 255f, 20f / 255f, 0.9f);
+        actionShadow.effectDistance = new Vector2(0f, -3f);
+        TMP_Text actionText = (TMP_Text)CrearTextoTMP(actionKey, "Texto", teclaAccion, 16f,
+            actionKey.sizeDelta, Vector2.zero, 0f,
+            new Vector4(0f, 0f, 0f, 0f));
+        actionText.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        actionText.fontStyle = FontStyles.Bold;
+        actionText.outlineWidth = 0f;
+
+        TMP_Text accion = CrearTextoTMP(root, "Accion", descripcionAccion, 19f,
+            new Vector2(220f, 65f), new Vector2(75f, -125f), 0f,
+            new Vector4(0f, 0f, 0f, 0f));
+        accion.color = new Color(59f / 255f, 35f / 255f, 20f / 255f, 1f);
+        accion.alignment = TextAlignmentOptions.Left;
+        accion.fontStyle = FontStyles.Bold;
+        accion.outlineWidth = 0f;
+        accion.textWrappingMode = TextWrappingModes.Normal;
     }
 
     private void IniciarEscenaSeleccionada()
@@ -443,10 +749,24 @@ public class MainMenuController : MonoBehaviour
         }
 
         PlayerPrefs.Save();
-        SceneManager.LoadScene(escenaSeleccionada);
+        StartCoroutine(CargarEscenaConSonido(escenaSeleccionada));
     }
 
-    private void Salir()
+    private System.Collections.IEnumerator CargarEscenaConSonido(string nombreEscena)
+    {
+        AudioManager manager = AudioManager.Instancia;
+        manager.ReproducirBotonIniciarPartida();
+
+        float espera = manager.DuracionBotonIniciarPartida();
+        if (espera > 0f)
+        {
+            yield return new WaitForSecondsRealtime(espera);
+        }
+
+        SceneManager.LoadScene(nombreEscena);
+    }
+
+    private void SalirDelJuego()
     {
         Application.Quit();
 #if UNITY_EDITOR

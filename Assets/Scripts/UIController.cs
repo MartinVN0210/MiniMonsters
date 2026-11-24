@@ -17,7 +17,6 @@ public class UIController : MonoBehaviour
     private Text textoGameOver;
     private Image[] corazones;
     private Button botonPausa;
-    private Button botonReanudar;
     private GameObject panelGameOver;
     private RectTransform contenidoMinimapa;
     private RectTransform marcadorChispa;
@@ -37,7 +36,6 @@ public class UIController : MonoBehaviour
         gameManager.EstadoActualizado += ActualizarHUD;
         gameManager.GameOverIniciado += MostrarGameOver;
         botonPausa.onClick.AddListener(Pausar);
-        botonReanudar.onClick.AddListener(Reanudar);
         ActualizarHUD();
     }
 
@@ -52,11 +50,6 @@ public class UIController : MonoBehaviour
         if (botonPausa != null)
         {
             botonPausa.onClick.RemoveListener(Pausar);
-        }
-
-        if (botonReanudar != null)
-        {
-            botonReanudar.onClick.RemoveListener(Reanudar);
         }
     }
 
@@ -75,7 +68,6 @@ public class UIController : MonoBehaviour
         textoGameOver = Buscar<Text>("PanelGameOver/TextoGameOver");
         panelGameOver = BuscarObjeto("PanelGameOver");
         botonPausa = Buscar<Button>("PanelBotones/BotonPausa");
-        botonReanudar = Buscar<Button>("PanelBotones/BotonReanudar");
         Transform contenedorCorazones = transform.Find("PanelVida/ContenedorCorazones");
         corazones = contenedorCorazones != null
             ? contenedorCorazones.GetComponentsInChildren<Image>(false)
@@ -91,7 +83,7 @@ public class UIController : MonoBehaviour
 
         if (gameManager == null || textoEstrellas == null || textoEnergia == null ||
             textoNivelCompletado == null || textoGameOver == null || panelGameOver == null ||
-            botonPausa == null || botonReanudar == null || corazones == null ||
+            botonPausa == null || corazones == null ||
             contenidoMinimapa == null || marcadorChispa == null || marcadorRoca == null ||
             chispa == null || roca == null)
         {
@@ -141,14 +133,6 @@ public class UIController : MonoBehaviour
         if (!gameManager.GameOver)
         {
             Time.timeScale = 0f;
-        }
-    }
-
-    private void Reanudar()
-    {
-        if (!gameManager.GameOver)
-        {
-            Time.timeScale = 1f;
         }
     }
 

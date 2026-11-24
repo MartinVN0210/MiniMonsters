@@ -93,6 +93,7 @@ public class MovimientoJugador : MonoBehaviour
             Key derecha = controlesUnificados || protagonista == Protagonista.Chispa ? Key.D : Key.RightArrow;
             Key salto = controlesUnificados || protagonista == Protagonista.Chispa ? Key.W : Key.UpArrow;
             Key interactuar = controlesUnificados || protagonista == Protagonista.Chispa ? Key.E : Key.Enter;
+            // En modo de dos jugadores, Roca usa SHIFT DERECHO. En modo unificado usa SHIFT IZQUIERDO.
             Key habilidad = controlesUnificados || protagonista == Protagonista.Chispa ? Key.LeftShift : Key.RightShift;
 
             entradaHorizontal = (teclado[derecha].isPressed ? 1f : 0f)
