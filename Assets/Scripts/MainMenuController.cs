@@ -30,6 +30,10 @@ public class MainMenuController : MonoBehaviour
     private GameObject panelPrincipal;
     private GameObject panelModo;
     [SerializeField] private GameObject panelSeleccionNivel;
+    private GameObject panelInstrucciones;
+    private TMP_Text tituloInstrucciones;
+    private TMP_Text controlesInstrucciones;
+    private string escenaSeleccionada;
     private GameObject panelAjustes;
     private GameObject panelAcercaDe;
     private TMP_FontAsset tmpFont;
@@ -70,6 +74,9 @@ public class MainMenuController : MonoBehaviour
         panelSeleccionNivel = CrearPanel(canvas.transform, "Panel_SeleccionNivel", panelMenu, new Vector2(1500f, 900f));
         CrearSeleccionNivel(panelSeleccionNivel.transform);
 
+        panelInstrucciones = CrearPanel(canvas.transform, "Panel_Instrucciones", panelMenu, new Vector2(1500f, 900f));
+        CrearPanelInstrucciones(panelInstrucciones.transform);
+
         panelAjustes = CrearPanel(canvas.transform, "Panel_Ajustes", panelMenu, new Vector2(1150f, 800f));
         CrearAjustes(panelAjustes.transform, true);
 
@@ -79,6 +86,7 @@ public class MainMenuController : MonoBehaviour
 
         panelModo.SetActive(false);
         panelSeleccionNivel.SetActive(false);
+        panelInstrucciones.SetActive(false);
         panelAjustes.SetActive(false);
         panelAcercaDe.SetActive(false);
 
@@ -170,14 +178,60 @@ public class MainMenuController : MonoBehaviour
             new Vector2(1250f, 110f), new Vector2(0f, 375f), 0.34f, new Vector4(0f, 0f, 0f, 0f));
 
         CrearBotonTMP(parent, "Btn_Nivel1", "NIVEL 1: EL PARQUE (Fácil)", botonVerde,
-            new Vector2(930f, 125f), new Vector2(0f, 170f), 34, CargarNivel1);
+            new Vector2(930f, 125f), new Vector2(0f, 170f), 34, () => SeleccionarNivel("Nivel1_Parque"));
         CrearBotonTMP(parent, "Btn_Nivel2", "NIVEL 2: LA FÁBRICA ABANDONADA (Medio)", botonAzul,
-            new Vector2(930f, 125f), new Vector2(0f, 15f), 34, CargarNivel2);
+            new Vector2(930f, 125f), new Vector2(0f, 15f), 34, () => SeleccionarNivel("Nivel2_Fabrica"));
         CrearBotonTMP(parent, "Btn_Nivel3", "NIVEL 3: LA GRAN AVERÍA (Difícil)", botonMorado,
-            new Vector2(930f, 125f), new Vector2(0f, -140f), 34, CargarNivel3);
+            new Vector2(930f, 125f), new Vector2(0f, -140f), 34, () => SeleccionarNivel("Nivel3_Averia"));
         CrearBotonTMP(parent, "Btn_Regresar", "REGRESAR", botonRojo,
             new Vector2(480f, 110f), new Vector2(0f, -370f), 34,
             () => Mostrar(panelModo));
+    }
+
+    private void CrearPanelInstrucciones(Transform parent)
+    {
+        tituloInstrucciones = (TMP_Text)CrearTextoTMP(parent, "Titulo", "",
+            40f, new Vector2(1300f, 90f), new Vector2(0f, 360f), 0.38f,
+            new Vector4(0f, 0f, 0f, 0f));
+
+        CrearTarjetaInstrucciones(parent, "TarjetaChispa", "CHISPA",
+            "ACTIVA BOTONES Y PUENTES", chispaIdle, new Vector2(-405f, 125f));
+        CrearTarjetaInstrucciones(parent, "TarjetaRoca", "ROCA",
+            "EMPUJA Y MUEVE CAJAS", rocaIdle, new Vector2(405f, 125f));
+
+        Image banner = MenuUIFactory.CreateImage(parent, "BannerControles", tarjetaSeleccion,
+            new Vector2(1260f, 190f), new Vector2(0f, -125f), true);
+        controlesInstrucciones = (TMP_Text)CrearTextoTMP(banner.transform, "Controles",
+            "", 28f, new Vector2(1180f, 150f), Vector2.zero, 0.22f,
+            new Vector4(16f, 0f, 16f, 0f));
+
+        CrearBotonTMP(parent, "Btn_IniciarPartida", "¡INICIAR PARTIDA!", botonVerde,
+            new Vector2(460f, 92f), new Vector2(280f, -355f), 30f, IniciarEscenaSeleccionada);
+        CrearBotonTMP(parent, "Btn_RegresarInstrucciones", "REGRESAR", botonRojo,
+            new Vector2(280f, 85f), new Vector2(-300f, -355f), 30f,
+            () => Mostrar(panelSeleccionNivel));
+    }
+
+    private void CrearTarjetaInstrucciones(Transform parent, string name, string titulo,
+        string descripcion, Sprite personaje, Vector2 position)
+    {
+        Image card = MenuUIFactory.CreateImage(parent, name, tarjetaSeleccion,
+            new Vector2(650f, 250f), position, true);
+
+        if (personaje != null)
+        {
+            Image character = MenuUIFactory.CreateImage(card.transform, "Personaje", personaje,
+                new Vector2(150f, 150f), new Vector2(0f, 42f));
+            character.preserveAspect = true;
+            character.raycastTarget = false;
+        }
+
+        CrearTextoTMP(card.transform, "Titulo", titulo, 34f,
+            new Vector2(600f, 55f), new Vector2(0f, -48f), 0.28f,
+            new Vector4(10f, 0f, 10f, 0f));
+        CrearTextoTMP(card.transform, "Descripcion", descripcion, 23f,
+            new Vector2(620f, 50f), new Vector2(0f, -92f), 0.18f,
+            new Vector4(8f, 0f, 8f, 0f));
     }
 
     private TMP_Text CrearTextoTMP(Transform parent, string name, string value, float fontSize,
@@ -331,6 +385,7 @@ public class MainMenuController : MonoBehaviour
         panelPrincipal.SetActive(panel == panelPrincipal);
         panelModo.SetActive(panel == panelModo);
         panelSeleccionNivel.SetActive(panel == panelSeleccionNivel);
+        panelInstrucciones.SetActive(panel == panelInstrucciones);
         panelAjustes.SetActive(panel == panelAjustes);
         panelAcercaDe.SetActive(panel == panelAcercaDe);
 
@@ -354,22 +409,41 @@ public class MainMenuController : MonoBehaviour
         Mostrar(panelSeleccionNivel);
     }
 
-    private void CargarNivel1()
+    private void SeleccionarNivel(string nombreEscena)
     {
-        PlayerPrefs.Save();
-        SceneManager.LoadScene("Nivel1_Parque");
+        escenaSeleccionada = nombreEscena;
+        panelSeleccionNivel.SetActive(false);
+        ActualizarInstrucciones();
+        Mostrar(panelInstrucciones);
     }
 
-    private void CargarNivel2()
+    private void ActualizarInstrucciones()
     {
-        PlayerPrefs.Save();
-        SceneManager.LoadScene("Nivel2_Fabrica");
+        int modo = PlayerPrefs.GetInt("ModoJugadores", 2);
+        if (tituloInstrucciones != null)
+        {
+            tituloInstrucciones.text = modo == 1
+                ? "CONTROLES (MODO 1 JUGADOR)"
+                : "CONTROLES (MODO 2 JUGADORES)";
+        }
+
+        if (controlesInstrucciones != null)
+        {
+            controlesInstrucciones.text = modo == 1
+                ? "[W A S D] MOVER Y SALTAR  |  [SHIFT] INTERACTUAR  |  [ALT] CAMBIAR PERSONAJE"
+                : "CHISPA: [W A S D] + [SHIFT]   |   ROCA: [FLECHAS] + [ENTER / R-SHIFT]";
+        }
     }
 
-    private void CargarNivel3()
+    private void IniciarEscenaSeleccionada()
     {
+        if (string.IsNullOrEmpty(escenaSeleccionada))
+        {
+            return;
+        }
+
         PlayerPrefs.Save();
-        SceneManager.LoadScene("Nivel3_Averia");
+        SceneManager.LoadScene(escenaSeleccionada);
     }
 
     private void Salir()

@@ -9,6 +9,8 @@ public class GameModeManager : MonoBehaviour
     private MovimientoJugador humanoActual;
     private MovimientoJugador companeroActual;
     private bool esUnJugador;
+    private IndicadorPersonaje indicadorChispa;
+    private IndicadorPersonaje indicadorRoca;
 
     private void Start()
     {
@@ -23,12 +25,13 @@ public class GameModeManager : MonoBehaviour
         int modo = PlayerPrefs.GetInt("ModoJugadores", 2);
         esUnJugador = (modo == 1);
 
+        indicadorChispa = ObtenerIndicador(chispa, "CHISPA");
+        indicadorRoca = ObtenerIndicador(roca, "ROCA");
+        ActualizarIndicadores();
+
         if (esUnJugador)
         {
-            int heroeElegido = Mathf.Clamp(PlayerPrefs.GetInt("HeroeElegido", 0), 0, 1);
-            MovimientoJugador humano = heroeElegido == 0 ? chispa : roca;
-            MovimientoJugador companero = heroeElegido == 0 ? roca : chispa;
-            AsignarRolesUnJugador(humano, companero);
+            AsignarRolesUnJugador(chispa, roca);
             return;
         }
 
@@ -51,8 +54,8 @@ public class GameModeManager : MonoBehaviour
             return;
         }
 
-        // Tab permite alternar manualmente entre Chispa y Roca en cualquier momento.
-        if (teclado.tabKey.wasPressedThisFrame)
+        // Alt izquierdo alterna instantaneamente el personaje controlado por el jugador.
+        if (Keyboard.current.leftAltKey.wasPressedThisFrame)
         {
             AsignarRolesUnJugador(companeroActual, humanoActual);
             return;
@@ -77,6 +80,37 @@ public class GameModeManager : MonoBehaviour
         AsegurarRastreador(humanoActual);
         ConfigurarHumano(humanoActual);
         ConfigurarCompanero(companeroActual, humanoActual);
+        ActualizarIndicadores();
+    }
+
+    private IndicadorPersonaje ObtenerIndicador(MovimientoJugador jugador, string nombre)
+    {
+        IndicadorPersonaje indicador = jugador.GetComponent<IndicadorPersonaje>();
+        if (indicador == null)
+        {
+            indicador = jugador.gameObject.AddComponent<IndicadorPersonaje>();
+        }
+
+        indicador.ConfigurarNombre(nombre);
+        return indicador;
+    }
+
+    private void ActualizarIndicadores()
+    {
+        if (indicadorChispa == null || indicadorRoca == null)
+        {
+            return;
+        }
+
+        if (!esUnJugador)
+        {
+            indicadorChispa.Mostrar(false);
+            indicadorRoca.Mostrar(false);
+            return;
+        }
+
+        indicadorChispa.Mostrar(humanoActual != null && humanoActual.Tipo == MovimientoJugador.Protagonista.Chispa);
+        indicadorRoca.Mostrar(humanoActual != null && humanoActual.Tipo == MovimientoJugador.Protagonista.Roca);
     }
 
     private void AsegurarRastreador(MovimientoJugador jugador)
@@ -94,7 +128,7 @@ public class GameModeManager : MonoBehaviour
     {
         DeshabilitarIA(jugador);
         jugador.enabled = true;
-        jugador.ConfigurarControlHumano(true);
+        jugador.ConfigurarControlHumano(true, esUnJugador);
     }
 
     private void ConfigurarCompanero(MovimientoJugador companero, MovimientoJugador humano)

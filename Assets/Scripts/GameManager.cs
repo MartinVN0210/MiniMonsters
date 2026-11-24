@@ -243,7 +243,9 @@ public class GameManager : MonoBehaviour
         MovimientoJugador movimiento = jugador.GetComponent<MovimientoJugador>();
         if (movimiento != null)
         {
-            movimiento.ConfigurarControlHumano(movimiento.ControlHumano);
+            movimiento.ConfigurarControlHumano(
+                movimiento.ControlHumano,
+                movimiento.ControlHumano && PlayerPrefs.GetInt("ModoJugadores", 2) == 1);
         }
     }
 

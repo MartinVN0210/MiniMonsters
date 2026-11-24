@@ -37,6 +37,7 @@ public class MovimientoJugador : MonoBehaviour
     private bool saltoIASolicitado;
     private bool interaccionIASolicitada;
     private bool habilidadIASolicitada;
+    private bool controlesUnificados;
     private bool enElSuelo;
     private Collider2D colisionador;
     private ContactFilter2D filtroSuelo;
@@ -88,11 +89,11 @@ public class MovimientoJugador : MonoBehaviour
                 return;
             }
 
-            Key izquierda = protagonista == Protagonista.Chispa ? Key.A : Key.LeftArrow;
-            Key derecha = protagonista == Protagonista.Chispa ? Key.D : Key.RightArrow;
-            Key salto = protagonista == Protagonista.Chispa ? Key.W : Key.UpArrow;
-            Key interactuar = protagonista == Protagonista.Chispa ? Key.E : Key.Enter;
-            Key habilidad = protagonista == Protagonista.Chispa ? Key.LeftShift : Key.RightShift;
+            Key izquierda = controlesUnificados || protagonista == Protagonista.Chispa ? Key.A : Key.LeftArrow;
+            Key derecha = controlesUnificados || protagonista == Protagonista.Chispa ? Key.D : Key.RightArrow;
+            Key salto = controlesUnificados || protagonista == Protagonista.Chispa ? Key.W : Key.UpArrow;
+            Key interactuar = controlesUnificados || protagonista == Protagonista.Chispa ? Key.E : Key.Enter;
+            Key habilidad = controlesUnificados || protagonista == Protagonista.Chispa ? Key.LeftShift : Key.RightShift;
 
             entradaHorizontal = (teclado[derecha].isPressed ? 1f : 0f)
                 - (teclado[izquierda].isPressed ? 1f : 0f);
@@ -144,9 +145,10 @@ public class MovimientoJugador : MonoBehaviour
         ActualizarParametrosAnimator();
     }
 
-    public void ConfigurarControlHumano(bool habilitado)
+    public void ConfigurarControlHumano(bool habilitado, bool unificarControles = false)
     {
         controlHumano = habilitado;
+        controlesUnificados = habilitado && unificarControles;
         entradaIA = 0f;
         entradaHorizontal = 0f;
         saltoIASolicitado = false;

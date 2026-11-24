@@ -430,6 +430,8 @@ MonoBehaviour:
   sliderFondo: {fileID: 4589310165157021836, guid: cbcb713703894044ab575f26b55109b5, type: 3}
   sliderRelleno: {fileID: 913517620688942745, guid: c47fa377e40511b498042af498f46e37, type: 3}
   sliderPerilla: {fileID: -127188477792676979, guid: a16fe68dedf81ff41a0825c5b0f2ddd5, type: 3}
+  musicaAudioSource: {fileID: 0}
+  sfxAudioSources: []
   panelSeleccionNivel: {fileID: 0}
 --- !u!4 &1964682067
 Transform:
