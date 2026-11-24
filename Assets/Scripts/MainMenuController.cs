@@ -149,16 +149,12 @@ public class MainMenuController : MonoBehaviour
     {
         MenuUIFactory.CreateText(parent, "Titulo", "ELIGE CÓMO JUGAR", 46, Color.white,
             new Vector2(1000f, 90f), new Vector2(0f, 340f));
-        MenuUIFactory.CreateText(parent, "Subtitulo", "UN JUGADOR - Selecciona tu personaje", 20, Color.white,
-            new Vector2(1050f, 32f), new Vector2(0f, 300f));
-        CrearTarjeta(parent, "TarjetaChispa", "CHISPA\n(Roca = IA)", chispaIdle,
-            new Vector2(-310f, 120f), () => IniciarUnJugador(0));
-        CrearTarjeta(parent, "TarjetaRoca", "ROCA\n(Chispa = IA)", rocaIdle,
-            new Vector2(310f, 120f), () => IniciarUnJugador(1));
-        MenuUIFactory.CreateButton(parent, "DosJugadores", "DOS JUGADORES (Cooperativo Local)",
-            botonRosa, new Vector2(450f, 86f), new Vector2(0f, -205f), IniciarCooperativo, 25);
-        MenuUIFactory.CreateButton(parent, "Regresar", "REGRESAR", botonRojo,
-            new Vector2(340f, 90f), new Vector2(0f, -335f), () => Mostrar(panelPrincipal), 32);
+        CrearBotonTMP(parent, "Btn_DosJugadores", "DOS JUGADORES (Local) - Recomendado",
+            botonRosa, new Vector2(720f, 110f), new Vector2(0f, 90f), 25, IniciarCooperativo);
+        CrearBotonTMP(parent, "Btn_UnJugador", "UN JUGADOR",
+            botonVerde, new Vector2(720f, 110f), new Vector2(0f, -45f), 25, IniciarUnJugador);
+        CrearBotonTMP(parent, "Btn_Regresar", "REGRESAR", botonRojo,
+            new Vector2(340f, 90f), new Vector2(0f, -335f), 32, () => Mostrar(panelPrincipal));
     }
 
     private void CrearSeleccionNivel(Transform parent)
@@ -188,25 +184,12 @@ public class MainMenuController : MonoBehaviour
         text.fontStyle = FontStyles.Bold;
         text.color = new Color(1f, 0.992f, 0.941f, 1f);
         text.alignment = TextAlignmentOptions.Center;
-        text.textWrappingMode = TextWrappingModes.Normal;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
         text.margin = margin;
         if (tmpFont != null && tmpFont.material != null)
         {
             text.outlineWidth = outlineThickness;
             text.outlineColor = Color.black;
-        }
-        else
-        {
-            Text fallback = MenuUIFactory.CreateText(rect, "LegacyFallback", value,
-                Mathf.RoundToInt(fontSize), text.color, size, Vector2.zero);
-            fallback.fontStyle = FontStyle.Bold;
-            fallback.alignment = TextAnchor.MiddleCenter;
-            Outline outline = fallback.GetComponent<Outline>();
-            if (outline != null)
-            {
-                outline.effectColor = Color.black;
-                outline.effectDistance = new Vector2(1f, -2f);
-            }
         }
 
         return text;
@@ -219,9 +202,11 @@ public class MainMenuController : MonoBehaviour
         Button button = image.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
         button.onClick.AddListener(action);
-        CrearTextoTMP(image.transform, "Label", label, fontSize,
+        TMP_Text text = CrearTextoTMP(image.transform, "Label", label, fontSize,
             size - new Vector2(32f, 12f), Vector2.zero, 0.3f,
-            new Vector4(24f, 0f, 92f, 0f)).color = Color.white;
+            new Vector4(24f, 0f, 95f, 0f));
+        text.color = Color.white;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
         return button;
     }
 
@@ -301,10 +286,10 @@ public class MainMenuController : MonoBehaviour
         }
     }
 
-    private void IniciarUnJugador(int heroe)
+    private void IniciarUnJugador()
     {
         PlayerPrefs.SetInt("ModoJugadores", 1);
-        PlayerPrefs.SetInt("HeroeElegido", heroe);
+        PlayerPrefs.SetString("HeroeElegido", "Chispa");
         Mostrar(panelSeleccionNivel);
     }
 

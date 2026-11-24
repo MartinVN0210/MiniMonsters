@@ -10,6 +10,7 @@ public class AICompanion : MonoBehaviour
         BuscarBoton,
         IrAlBoton,
         MantenerBoton,
+        ApoyarComoEscalon,
         IrARocaComoEscalon,
         EvaluarObstaculo,
         PosicionarseTrasCaja,
@@ -19,10 +20,10 @@ public class AICompanion : MonoBehaviour
     }
 
     [Header("Seguimiento y sensores")]
-    [SerializeField] private float distanciaInicio = 1.5f;
-    [SerializeField] private float distanciaObjetivo = 2f;
+    [SerializeField] private float distanciaInicio = 1.2f;
+    [SerializeField] private float distanciaObjetivo = 0.95f;
     [SerializeField] private float radioBotones = 12f;
-    [SerializeField] private float longitudSensorSuelo = 0.6f;
+    [SerializeField] private float longitudSensorSuelo = 0.65f;
     [SerializeField] private float longitudSensorPared = 0.85f;
     [SerializeField] private float alcanceSaltoRoca = 3.2f;
     [SerializeField] private float alturaSaltoEfectiva = 2.2f;
@@ -40,20 +41,24 @@ public class AICompanion : MonoBehaviour
     private LayerMask sueloMask;
     private LayerMask paredMask;
     private PhysicsMaterial2D materialMovimiento;
+
     private float velocidadMovimiento;
     private float fuerzaSalto;
+    private float velocidadObjetivoX;
+    private bool saltoPendiente;
     private float siguienteSalto;
+    private float siguienteEmpuje;
     private float tiempoSinAvance;
     private float ultimoX;
     private float tiempoUltimoSaltoHumano;
     private int saltosHumanoCercaMuro;
     private float apoyoHasta;
     private float tiempoLejano;
+    private float finEsperaBoton;
     private float direccionActual;
-    private bool rescatando;
     private bool saltoCajaRealizado;
     private bool segundoSaltoCajaRealizado;
-    private bool esperandoCruce;
+
     private Vector2 posicionInicialJugador;
     private Vector2 destinoCaja;
     private Estado estado = Estado.EsperarInicio;
@@ -68,18 +73,7 @@ public class AICompanion : MonoBehaviour
     {
         DesuscribirHumano();
         humano = jugadorHumano;
-        movimiento = GetComponent<MovimientoJugador>();
-        rb = GetComponent<Rigidbody2D>();
-        colisionador = GetComponent<Collider2D>();
-        animator = movimiento.AnimatorReferencia;
-        spriteRenderer = movimiento.SpriteRendererReferencia;
-        velocidadMovimiento = movimiento.Velocidad;
-        fuerzaSalto = movimiento.FuerzaSalto;
-        sueloMask = LayerMask.GetMask("Ground", "Box");
-        paredMask = LayerMask.GetMask("Ground", "Box");
-        checadorSuelo = movimiento.ChecadorSuelo;
-        materialMovimiento = movimiento.MaterialMovimiento;
-        ConfigurarColliderFisico();
+        InicializarComponentes();
 
         rutaJugador = humano == null ? null : humano.GetComponent<PlayerPathTracker>();
         if (humano != null)
@@ -91,14 +85,42 @@ public class AICompanion : MonoBehaviour
         estado = Estado.EsperarInicio;
         botonObjetivo = null;
         cajaObjetivo = null;
-        esperandoCruce = false;
-        rescatando = false;
         tiempoLejano = 0f;
         tiempoSinAvance = 0f;
+        apoyoHasta = 0f;
+        saltosHumanoCercaMuro = 0;
+        velocidadObjetivoX = 0f;
+        saltoPendiente = false;
         ultimoX = transform.position.x;
     }
 
+    public void LlamarCompanero()
+    {
+        if (!PuedeActuar())
+        {
+            return;
+        }
+
+        botonObjetivo = null;
+        cajaObjetivo = null;
+        apoyoHasta = 0f;
+        tiempoSinAvance = 0f;
+
+        if (Vector2.Distance(transform.position, humano.transform.position) > 6f && humano.EnElSuelo)
+        {
+            ReposicionarCercaDeHumano();
+            return;
+        }
+
+        estado = Estado.Seguir;
+    }
+
     private void Awake()
+    {
+        InicializarComponentes();
+    }
+
+    private void InicializarComponentes()
     {
         movimiento = GetComponent<MovimientoJugador>();
         rb = GetComponent<Rigidbody2D>();
@@ -107,7 +129,7 @@ public class AICompanion : MonoBehaviour
         spriteRenderer = movimiento.SpriteRendererReferencia;
         velocidadMovimiento = movimiento.Velocidad;
         fuerzaSalto = movimiento.FuerzaSalto;
-        sueloMask = LayerMask.GetMask("Ground", "Box");
+        sueloMask = LayerMask.GetMask("Ground", "Box", "Suelo");
         paredMask = LayerMask.GetMask("Ground", "Box");
         checadorSuelo = movimiento.ChecadorSuelo;
         materialMovimiento = movimiento.MaterialMovimiento;
@@ -117,6 +139,8 @@ public class AICompanion : MonoBehaviour
     private void OnDisable()
     {
         DesuscribirHumano();
+        velocidadObjetivoX = 0f;
+        saltoPendiente = false;
     }
 
     private void DesuscribirHumano()
@@ -129,11 +153,14 @@ public class AICompanion : MonoBehaviour
 
     private void Update()
     {
-        if (!PuedeActuar()) return;
-
-        if (RescateNecesario())
+        if (!PuedeActuar() || Time.timeScale == 0f)
         {
-            AplicarMovimiento(0f, false);
+            velocidadObjetivoX = 0f;
+            return;
+        }
+
+        if (VerificarYEjecutarRescate())
+        {
             ActualizarAnimacion();
             return;
         }
@@ -143,43 +170,91 @@ public class AICompanion : MonoBehaviour
         ActualizarAnimacion();
     }
 
+    private void FixedUpdate()
+    {
+        if (!PuedeActuar() || rb == null)
+        {
+            return;
+        }
+
+        if (saltoPendiente)
+        {
+            saltoPendiente = false;
+            if (EstaEnElSuelo() && Time.time >= siguienteSalto)
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x, fuerzaSalto);
+                siguienteSalto = Time.time + 0.42f;
+            }
+        }
+
+        rb.linearVelocity = new Vector2(velocidadObjetivoX, rb.linearVelocity.y);
+    }
+
     private void EjecutarEstado()
     {
+        if (movimiento.Tipo == MovimientoJugador.Protagonista.Roca &&
+            Time.time < apoyoHasta &&
+            estado != Estado.EmpujarCaja)
+        {
+            estado = Estado.ApoyarComoEscalon;
+        }
+
         switch (estado)
         {
             case Estado.EsperarInicio:
                 AplicarMovimiento(0f, false);
-                if (Vector2.Distance(humano.transform.position, posicionInicialJugador) >= distanciaInicio)
-                    estado = humano.Tipo == MovimientoJugador.Protagonista.Roca
-                        ? Estado.EvaluarObstaculo : Estado.BuscarBoton;
+                if (Vector2.Distance(humano.transform.position, posicionInicialJugador) >= distanciaInicio ||
+                    ObtenerSalidaCercanaAlHumano() != null)
+                {
+                    estado = movimiento.Tipo == MovimientoJugador.Protagonista.Roca
+                        ? Estado.EvaluarObstaculo
+                        : Estado.BuscarBoton;
+                }
                 break;
+
             case Estado.Seguir:
                 EjecutarSeguimiento();
                 break;
+
             case Estado.BuscarBoton:
-                if (!BuscarBoton()) estado = Estado.Seguir;
+                if (!BuscarBoton())
+                {
+                    estado = Estado.Seguir;
+                }
                 break;
+
             case Estado.IrAlBoton:
                 EjecutarIrAlBoton();
                 break;
+
             case Estado.MantenerBoton:
                 EjecutarMantenerBoton();
                 break;
+
+            case Estado.ApoyarComoEscalon:
+                EjecutarApoyoComoEscalon();
+                break;
+
             case Estado.IrARocaComoEscalon:
                 EjecutarEscalonDeRoca();
                 break;
+
             case Estado.EvaluarObstaculo:
                 EvaluarObstaculoRoca();
                 break;
+
             case Estado.PosicionarseTrasCaja:
                 EjecutarPosicionTrasCaja();
                 break;
+
             case Estado.EmpujarCaja:
                 EjecutarEmpujeCaja();
                 break;
+
             case Estado.SubirCaja:
                 EjecutarSubirCaja();
                 break;
+
             case Estado.EsperarAyuda:
                 EjecutarEsperaAyuda();
                 break;
@@ -188,7 +263,21 @@ public class AICompanion : MonoBehaviour
 
     private void EjecutarSeguimiento()
     {
-        if (movimiento.Tipo == MovimientoJugador.Protagonista.Chispa && BuscarBoton()) return;
+        Transform salidaCercana = ObtenerSalidaCercanaAlHumano();
+        if (salidaCercana != null)
+        {
+            float difSalida = salidaCercana.position.x - transform.position.x;
+            float dirSalida = Mathf.Abs(difSalida) > 0.25f ? Mathf.Sign(difSalida) : 0f;
+            bool saltarSalida = DetectarObstaculo(dirSalida) || DetectarHueco(dirSalida);
+            AplicarMovimiento(dirSalida, saltarSalida);
+            return;
+        }
+
+        if (movimiento.Tipo == MovimientoJugador.Protagonista.Chispa && BuscarBoton())
+        {
+            return;
+        }
+
         if (movimiento.Tipo == MovimientoJugador.Protagonista.Roca && ObstaculoBloqueante())
         {
             estado = Estado.EvaluarObstaculo;
@@ -198,21 +287,43 @@ public class AICompanion : MonoBehaviour
 
         float diferencia = humano.transform.position.x - transform.position.x;
         float direccion = Mathf.Abs(diferencia) > distanciaObjetivo ? Mathf.Sign(diferencia) : 0f;
+
         PlayerPathPoint punto = default;
         bool tienePunto = rutaJugador != null && rutaJugador.TryPeek(out punto);
         bool saltoMarcado = tienePunto && punto.SaltoAqui &&
-                            Mathf.Abs(punto.Posicion.x - transform.position.x) < 0.55f;
+                            Mathf.Abs(punto.Posicion.x - transform.position.x) < 0.65f;
+
         bool saltar = saltoMarcado || DetectarObstaculo(direccion) || DetectarHueco(direccion);
         AplicarMovimiento(direccion, saltar);
-        if (tienePunto && Vector2.Distance(transform.position, punto.Posicion) <= distanciaObjetivo)
+
+        if (tienePunto && Vector2.Distance(transform.position, punto.Posicion) <= distanciaObjetivo + 0.4f)
+        {
             rutaJugador.TryDequeue(out punto);
+        }
+    }
+
+    private Transform ObtenerSalidaCercanaAlHumano()
+    {
+        SalidaCooperativa salidaCoop = FindAnyObjectByType<SalidaCooperativa>();
+        if (salidaCoop != null && Vector2.Distance(humano.transform.position, salidaCoop.transform.position) <= 3.2f)
+        {
+            return salidaCoop.transform;
+        }
+
+        SalidaVictoria salidaVic = FindAnyObjectByType<SalidaVictoria>();
+        if (salidaVic != null && Vector2.Distance(humano.transform.position, salidaVic.transform.position) <= 3.2f)
+        {
+            return salidaVic.transform;
+        }
+
+        return null;
     }
 
     private bool BuscarBoton()
     {
         if (botonObjetivo != null && botonObjetivo.Activado)
         {
-            esperandoCruce = true;
+            finEsperaBoton = Time.time + 0.4f;
             estado = Estado.MantenerBoton;
             return true;
         }
@@ -222,7 +333,11 @@ public class AICompanion : MonoBehaviour
         InterruptorElectrico mejor = null;
         foreach (InterruptorElectrico boton in botones)
         {
-            if (boton == null || boton.Activado) continue;
+            if (boton == null || boton.Activado)
+            {
+                continue;
+            }
+
             float distancia = Vector2.Distance(humano.transform.position, boton.transform.position);
             if (distancia <= radioBotones && distancia < mejorDistancia)
             {
@@ -231,7 +346,11 @@ public class AICompanion : MonoBehaviour
             }
         }
 
-        if (mejor == null) return false;
+        if (mejor == null)
+        {
+            return false;
+        }
+
         botonObjetivo = mejor;
         estado = Estado.IrAlBoton;
         return true;
@@ -241,15 +360,17 @@ public class AICompanion : MonoBehaviour
     {
         if (botonObjetivo == null || botonObjetivo.Activado)
         {
-            estado = botonObjetivo == null ? Estado.Seguir : Estado.MantenerBoton;
+            botonObjetivo = null;
+            estado = Estado.Seguir;
             return;
         }
 
         float altura = botonObjetivo.transform.position.y - transform.position.y;
         float saltoNormal = AlturaSaltoNormal();
         bool requiereEscalon = altura > saltoNormal &&
-                               altura <= saltoNormal * 1.8f &&
-                               Vector2.Distance(transform.position, humano.transform.position) <= 2.2f;
+                               altura <= saltoNormal * 1.9f &&
+                               Vector2.Distance(transform.position, humano.transform.position) <= 2.6f;
+
         if (requiereEscalon && movimiento.Tipo == MovimientoJugador.Protagonista.Chispa)
         {
             estado = Estado.IrARocaComoEscalon;
@@ -259,12 +380,14 @@ public class AICompanion : MonoBehaviour
         float direccion = DireccionHacia(botonObjetivo.transform.position.x);
         bool saltar = DetectarObstaculo(direccion) || DetectarHueco(direccion) || Atascado();
         AplicarMovimiento(direccion, saltar);
+
         Collider2D colliderBoton = botonObjetivo.GetComponent<Collider2D>();
-        if (colliderBoton != null && Vector2.Distance(colliderBoton.ClosestPoint(transform.position), transform.position) <= 0.85f)
+        if (colliderBoton != null &&
+            Vector2.Distance(colliderBoton.ClosestPoint(transform.position), transform.position) <= 0.9f)
         {
             AplicarMovimiento(0f, false);
             botonObjetivo.ActivarDesdeJugador(movimiento);
-            esperandoCruce = true;
+            finEsperaBoton = Time.time + 0.4f;
             estado = Estado.MantenerBoton;
         }
     }
@@ -272,35 +395,58 @@ public class AICompanion : MonoBehaviour
     private void EjecutarMantenerBoton()
     {
         AplicarMovimiento(0f, false);
-        if (botonObjetivo == null)
+        if (botonObjetivo == null || Time.time >= finEsperaBoton)
+        {
+            botonObjetivo = null;
+            estado = Estado.Seguir;
+        }
+    }
+
+    private void EjecutarApoyoComoEscalon()
+    {
+        if (Time.time >= apoyoHasta)
         {
             estado = Estado.Seguir;
             return;
         }
 
-        bool jugadorCruzo = Vector2.Distance(humano.transform.position, botonObjetivo.transform.position) > 7f;
-        if (jugadorCruzo || !esperandoCruce)
+        float distanciaX = humano.transform.position.x - transform.position.x;
+        if (Mathf.Abs(distanciaX) > 0.55f)
         {
-            botonObjetivo = null;
-            esperandoCruce = false;
-            estado = Estado.Seguir;
+            float dir = Mathf.Sign(distanciaX);
+            AplicarMovimiento(dir, DetectarObstaculo(dir) || DetectarHueco(dir));
+        }
+        else
+        {
+            AplicarMovimiento(0f, false);
         }
     }
 
     private void EjecutarEscalonDeRoca()
     {
+        if (botonObjetivo == null || botonObjetivo.Activado)
+        {
+            estado = Estado.Seguir;
+            return;
+        }
+
         float diferencia = humano.transform.position.x - transform.position.x;
-        bool sobreRoca = Mathf.Abs(diferencia) < 0.45f &&
-                         transform.position.y > humano.transform.position.y - 0.2f;
+        bool sobreRoca = Mathf.Abs(diferencia) < 0.5f &&
+                         transform.position.y > humano.transform.position.y + 0.25f;
+
         if (!sobreRoca)
         {
-            AplicarMovimiento(DireccionHacia(humano.transform.position.x), Atascado());
+            float dir = DireccionHacia(humano.transform.position.x);
+            bool saltarSobreRoca = Mathf.Abs(diferencia) < 1.35f || Atascado();
+            AplicarMovimiento(dir, saltarSobreRoca);
             return;
         }
 
         AplicarMovimiento(DireccionHacia(botonObjetivo.transform.position.x), true);
-        if (transform.position.y > botonObjetivo.transform.position.y - 0.5f)
+        if (transform.position.y > botonObjetivo.transform.position.y - 0.6f)
+        {
             estado = Estado.IrAlBoton;
+        }
     }
 
     private void EvaluarObstaculoRoca()
@@ -328,7 +474,7 @@ public class AICompanion : MonoBehaviour
             return;
         }
 
-        destinoCaja = cajaObjetivo.transform.position - Vector3.right * Mathf.Sign(direccion) * 1.05f;
+        destinoCaja = cajaObjetivo.transform.position - Vector3.right * Mathf.Sign(direccion) * 0.95f;
         saltoCajaRealizado = false;
         segundoSaltoCajaRealizado = false;
         estado = Estado.PosicionarseTrasCaja;
@@ -345,16 +491,18 @@ public class AICompanion : MonoBehaviour
         float direccion = DireccionHacia(destinoCaja.x);
         bool ladoIncorrecto = Mathf.Sign(cajaObjetivo.transform.position.x - transform.position.x) !=
                               Mathf.Sign(humano.transform.position.x - transform.position.x);
-        if (ladoIncorrecto && Mathf.Abs(cajaObjetivo.transform.position.x - transform.position.x) < 1.1f)
+
+        if (ladoIncorrecto && Mathf.Abs(cajaObjetivo.transform.position.x - transform.position.x) < 1.2f)
         {
-            // Solo se salta para cruzar la caja; nunca se modifica la posición directamente.
             AplicarMovimiento(Mathf.Sign(humano.transform.position.x - transform.position.x), true);
             return;
         }
 
-        AplicarMovimiento(direccion, false);
-        if (Mathf.Abs(transform.position.x - destinoCaja.x) < 0.2f)
+        AplicarMovimiento(direccion, Atascado());
+        if (Mathf.Abs(transform.position.x - destinoCaja.x) < 0.25f)
+        {
             estado = Estado.EmpujarCaja;
+        }
     }
 
     private void EjecutarEmpujeCaja()
@@ -367,18 +515,23 @@ public class AICompanion : MonoBehaviour
 
         float direccion = Mathf.Sign(humano.transform.position.x - transform.position.x);
         float distancia = Mathf.Abs(cajaObjetivo.transform.position.x - transform.position.x);
-        if (distancia > 1.25f)
+        if (distancia > 1.5f)
         {
             estado = Estado.PosicionarseTrasCaja;
             return;
         }
 
-        // Mientras se toca la caja se desactiva el salto automático y se solicita el empuje.
         movimiento.EstablecerEntradaIA(direccion, false);
-        movimiento.DispararHabilidad();
         AplicarMovimiento(direccion, false);
 
-        if (CajaFlushContraObstaculo(direccion) || CajaEnBorde(direccion))
+        if (Time.time >= siguienteEmpuje)
+        {
+            movimiento.DispararHabilidad();
+            siguienteEmpuje = Time.time + 0.22f;
+        }
+
+        bool cercaDeHumano = Mathf.Abs(cajaObjetivo.transform.position.x - humano.transform.position.x) <= 1.2f;
+        if (CajaFlushContraObstaculo(direccion) || CajaEnBorde(direccion) || cercaDeHumano)
         {
             estado = Estado.SubirCaja;
             saltoCajaRealizado = false;
@@ -402,7 +555,7 @@ public class AICompanion : MonoBehaviour
             return;
         }
 
-        bool sobreCaja = transform.position.y > cajaObjetivo.transform.position.y + 0.45f;
+        bool sobreCaja = transform.position.y > cajaObjetivo.transform.position.y + 0.4f;
         if (sobreCaja && !segundoSaltoCajaRealizado && EsMuroAlto(direccion))
         {
             AplicarMovimiento(direccion, true);
@@ -410,14 +563,14 @@ public class AICompanion : MonoBehaviour
             return;
         }
 
-        if (segundoSaltoCajaRealizado || !EsMuroAlto(direccion))
+        if (segundoSaltoCajaRealizado || (sobreCaja && !EsMuroAlto(direccion)))
         {
             cajaObjetivo = null;
             estado = Estado.Seguir;
         }
         else
         {
-            AplicarMovimiento(direccion, false);
+            AplicarMovimiento(direccion, Atascado());
         }
     }
 
@@ -426,7 +579,63 @@ public class AICompanion : MonoBehaviour
         AplicarMovimiento(0f, false);
         float direccion = DireccionHacia(humano.transform.position.x);
         if (HaySueloDelante(direccion) && !HuecoExcedeAlcance(direccion))
+        {
             estado = Estado.Seguir;
+        }
+    }
+
+    private bool VerificarYEjecutarRescate()
+    {
+        float distancia = Vector2.Distance(transform.position, humano.transform.position);
+        if (distancia > 14f || transform.position.y < humano.transform.position.y - 5f)
+        {
+            tiempoLejano += Time.deltaTime;
+        }
+        else
+        {
+            tiempoLejano = 0f;
+        }
+
+        if (tiempoLejano >= 2.2f)
+        {
+            AplicarMovimiento(0f, false);
+            if (humano.EnElSuelo)
+            {
+                ReposicionarCercaDeHumano();
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ReposicionarCercaDeHumano()
+    {
+        SpriteRenderer spriteHumano = humano.SpriteRendererReferencia;
+        float mirando = spriteHumano != null && spriteHumano.flipX ? -1f : 1f;
+        Vector2 destino = (Vector2)humano.transform.position - Vector2.right * mirando * 0.85f;
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.position = destino;
+        }
+        else
+        {
+            transform.position = destino;
+        }
+
+        if (rutaJugador != null)
+        {
+            rutaJugador.Limpiar();
+        }
+
+        tiempoLejano = 0f;
+        tiempoSinAvance = 0f;
+        botonObjetivo = null;
+        cajaObjetivo = null;
+        estado = Estado.Seguir;
     }
 
     private bool ObstaculoBloqueante()
@@ -437,39 +646,83 @@ public class AICompanion : MonoBehaviour
 
     private bool HaySueloDelante(float direccion)
     {
-        if (colisionador == null || Mathf.Abs(direccion) < 0.01f) return true;
+        if (colisionador == null || Mathf.Abs(direccion) < 0.01f)
+        {
+            return true;
+        }
+
         Bounds bounds = colisionador.bounds;
         float sentido = Mathf.Sign(direccion);
-        Vector2 origen = new Vector2(bounds.center.x + sentido * (bounds.extents.x + 0.08f), bounds.min.y + 0.06f);
+        Vector2 origen = new Vector2(bounds.center.x + sentido * (bounds.extents.x + 0.1f), bounds.min.y + 0.06f);
+        if (HayPeligroEn(origen + Vector2.down * 0.25f))
+        {
+            return false;
+        }
+
         return EsHitValido(Physics2D.Raycast(origen, Vector2.down, longitudSensorSuelo, paredMask));
     }
 
     private bool DetectarHueco(float direccion)
     {
-        if (colisionador == null || Mathf.Abs(direccion) < 0.01f) return false;
+        if (colisionador == null || Mathf.Abs(direccion) < 0.01f)
+        {
+            return false;
+        }
+
         Bounds bounds = colisionador.bounds;
         float sentido = Mathf.Sign(direccion);
-        Vector2 origen = new Vector2(bounds.center.x + sentido * (bounds.extents.x + 0.15f), bounds.min.y + 0.08f);
-        return !EsHitValido(Physics2D.Raycast(origen, Vector2.down, 0.8f, paredMask));
+        Vector2 origen = new Vector2(bounds.center.x + sentido * (bounds.extents.x + 0.16f), bounds.min.y + 0.08f);
+        if (HayPeligroEn(origen + Vector2.down * 0.25f))
+        {
+            return true;
+        }
+
+        return !EsHitValido(Physics2D.Raycast(origen, Vector2.down, 0.85f, paredMask));
+    }
+
+    private bool HayPeligroEn(Vector2 punto)
+    {
+        Collider2D[] hits = Physics2D.OverlapCircleAll(punto, 0.3f);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i] != null && (hits[i].GetComponent<ZonaMuerte2D>() != null || hits[i].CompareTag("Hazard")))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool HuecoExcedeAlcance(float direccion)
     {
-        if (!DetectarHueco(direccion)) return false;
+        if (!DetectarHueco(direccion))
+        {
+            return false;
+        }
+
         Bounds bounds = colisionador.bounds;
         float sentido = Mathf.Sign(direccion);
         for (float distancia = 0.2f; distancia <= alcanceSaltoRoca; distancia += 0.2f)
         {
             Vector2 origen = new Vector2(bounds.center.x + sentido * (bounds.extents.x + distancia), bounds.min.y + 0.08f);
-            if (EsHitValido(Physics2D.Raycast(origen, Vector2.down, longitudSensorSuelo, paredMask)))
+            if (!HayPeligroEn(origen + Vector2.down * 0.25f) &&
+                EsHitValido(Physics2D.Raycast(origen, Vector2.down, longitudSensorSuelo, paredMask)))
+            {
                 return false;
+            }
         }
+
         return true;
     }
 
     private bool DetectarObstaculo(float direccion)
     {
-        if (colisionador == null || Mathf.Abs(direccion) < 0.01f) return false;
+        if (colisionador == null || Mathf.Abs(direccion) < 0.01f)
+        {
+            return false;
+        }
+
         Bounds bounds = colisionador.bounds;
         float sentido = Mathf.Sign(direccion);
         Vector2 tobillo = new Vector2(bounds.center.x + sentido * (bounds.extents.x + 0.04f), bounds.min.y + 0.16f);
@@ -480,12 +733,20 @@ public class AICompanion : MonoBehaviour
 
     private bool EsMuroAlto(float direccion)
     {
-        if (colisionador == null || Mathf.Abs(direccion) < 0.01f) return false;
+        if (colisionador == null || Mathf.Abs(direccion) < 0.01f)
+        {
+            return false;
+        }
+
         Bounds bounds = colisionador.bounds;
         float sentido = Mathf.Sign(direccion);
         Vector2 origen = new Vector2(bounds.center.x + sentido * (bounds.extents.x + 0.04f), bounds.center.y);
         RaycastHit2D hit = Physics2D.Raycast(origen, Vector2.right * sentido, longitudSensorPared, paredMask);
-        if (!EsHitValido(hit)) return false;
+        if (!EsHitValido(hit))
+        {
+            return false;
+        }
+
         return hit.collider.bounds.max.y - bounds.min.y > alturaSaltoEfectiva;
     }
 
@@ -496,44 +757,69 @@ public class AICompanion : MonoBehaviour
         float mejorDistancia = float.MaxValue;
         foreach (CajaPesada caja in cajas)
         {
-            if (caja == null || caja.GetComponent<Rigidbody2D>() == null) continue;
+            if (caja == null || caja.GetComponent<Rigidbody2D>() == null)
+            {
+                continue;
+            }
+
             float distanciaX = Mathf.Abs(caja.transform.position.x - transform.position.x);
             float distanciaY = Mathf.Abs(caja.transform.position.y - transform.position.y);
-            if (distanciaX > radioBusquedaCaja || distanciaY > 3f) continue;
-            if (Mathf.Sign(caja.transform.position.x - transform.position.x) != Mathf.Sign(direccion)) continue;
+            if (distanciaX > radioBusquedaCaja || distanciaY > 3f)
+            {
+                continue;
+            }
+
+            if (Mathf.Sign(caja.transform.position.x - transform.position.x) != Mathf.Sign(direccion))
+            {
+                continue;
+            }
+
             if (distanciaX < mejorDistancia)
             {
                 mejor = caja;
                 mejorDistancia = distanciaX;
             }
         }
+
         return mejor;
     }
 
     private bool CajaFlushContraObstaculo(float direccion)
     {
         Collider2D cajaCollider = cajaObjetivo.GetComponent<Collider2D>();
-        if (cajaCollider == null) return false;
+        if (cajaCollider == null)
+        {
+            return false;
+        }
+
         float sentido = Mathf.Sign(direccion);
         Vector2 origen = new Vector2(cajaCollider.bounds.max.x + 0.02f, cajaCollider.bounds.center.y);
-        if (sentido < 0f) origen.x = cajaCollider.bounds.min.x - 0.02f;
-        RaycastHit2D hit = Physics2D.Raycast(origen, Vector2.right * sentido, 0.25f, paredMask);
-        return EsHitValido(hit);
+        if (sentido < 0f)
+        {
+            origen.x = cajaCollider.bounds.min.x - 0.02f;
+        }
+
+        return EsHitValido(Physics2D.Raycast(origen, Vector2.right * sentido, 0.25f, paredMask));
     }
 
     private bool CajaEnBorde(float direccion)
     {
         Collider2D cajaCollider = cajaObjetivo.GetComponent<Collider2D>();
-        if (cajaCollider == null) return false;
+        if (cajaCollider == null)
+        {
+            return false;
+        }
+
         float sentido = Mathf.Sign(direccion);
-        Vector2 origen = new Vector2(cajaCollider.bounds.center.x + sentido * (cajaCollider.bounds.extents.x + 0.1f), cajaCollider.bounds.min.y + 0.05f);
+        Vector2 origen = new Vector2(
+            cajaCollider.bounds.center.x + sentido * (cajaCollider.bounds.extents.x + 0.1f),
+            cajaCollider.bounds.min.y + 0.05f);
         return !EsHitValido(Physics2D.Raycast(origen, Vector2.down, longitudSensorSuelo, paredMask));
     }
 
     private float AlturaSaltoNormal()
     {
-        return Mathf.Min(alturaSaltoEfectiva, fuerzaSalto * fuerzaSalto /
-            (2f * Mathf.Abs(Physics2D.gravity.y)));
+        return Mathf.Min(alturaSaltoEfectiva, fuerzaSalto * fuerzaSalto / (2f * Mathf.Abs(Physics2D.gravity.y)));
     }
 
     private float DireccionHacia(float x)
@@ -542,50 +828,53 @@ public class AICompanion : MonoBehaviour
         return Mathf.Abs(diferencia) > 0.12f ? Mathf.Sign(diferencia) : 0f;
     }
 
-private bool EstaEnElSuelo()
-    {
-        if (checadorSuelo == null) return false;
-        Vector2 centro = (Vector2)checadorSuelo.position + Vector2.down * 0.03f;
-        Collider2D hit = Physics2D.OverlapBox(centro, new Vector2(0.45f, 0.18f), 0f, sueloMask);
-        return EsHitValido(hit);
-    }
-
     private void AplicarMovimiento(float dirX, bool saltar)
     {
         direccionActual = Mathf.Clamp(dirX, -1f, 1f);
-        bool grounded = EstaEnElSuelo();
         bool hueco = direccionActual != 0f && DetectarHueco(direccionActual);
         bool saltoPermitido = movimiento.Tipo == MovimientoJugador.Protagonista.Chispa ||
                               !HuecoExcedeAlcance(direccionActual);
+
         if (direccionActual != 0f && !HaySueloDelante(direccionActual) && (!hueco || !saltoPermitido))
+        {
             direccionActual = 0f;
-        if (Atascado() && estado != Estado.EmpujarCaja)
+        }
+
+        if (Atascado() && estado != Estado.EmpujarCaja && estado != Estado.ApoyarComoEscalon)
+        {
             saltar = true;
-        if (saltar && grounded && Time.time >= siguienteSalto)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, fuerzaSalto);
-            siguienteSalto = Time.time + 0.45f;
         }
-        rb.linearVelocity = new Vector2(direccionActual * velocidadMovimiento, rb.linearVelocity.y);
-        if (spriteRenderer != null)
+
+        if (saltar)
         {
-            if (rb.linearVelocity.x < -0.05f) spriteRenderer.flipX = true;
-            else if (rb.linearVelocity.x > 0.05f) spriteRenderer.flipX = false;
+            saltoPendiente = true;
         }
+
+        velocidadObjetivoX = direccionActual * velocidadMovimiento;
+        movimiento.EstablecerEntradaIA(direccionActual, false);
     }
 
     private void ActualizarAtasco()
     {
-        if (estado == Estado.EmpujarCaja || Mathf.Abs(direccionActual) < 0.01f || !EstaEnElSuelo())
+        if (estado == Estado.EmpujarCaja ||
+            estado == Estado.ApoyarComoEscalon ||
+            Mathf.Abs(direccionActual) < 0.01f ||
+            !EstaEnElSuelo())
         {
             tiempoSinAvance = 0f;
             ultimoX = transform.position.x;
             return;
         }
+
         if (Mathf.Abs(transform.position.x - ultimoX) < 0.01f && Mathf.Abs(rb.linearVelocity.x) < 0.1f)
+        {
             tiempoSinAvance += Time.deltaTime;
+        }
         else
+        {
             tiempoSinAvance = 0f;
+        }
+
         ultimoX = transform.position.x;
     }
 
@@ -594,42 +883,38 @@ private bool EstaEnElSuelo()
         return tiempoSinAvance >= tiempoAtasco;
     }
 
-    private bool RescateNecesario()
-    {
-        float distancia = Vector2.Distance(transform.position, humano.transform.position);
-        if (distancia > 14f || transform.position.y < humano.transform.position.y - 5f)
-            tiempoLejano += Time.deltaTime;
-        else
-            tiempoLejano = 0f;
-        // El rescate no teletransporta ni mueve la posición: solo detiene la IA para que gravedad y juego decidan.
-        if (tiempoLejano >= 2f)
-        {
-            rescatando = true;
-            estado = Estado.EsperarAyuda;
-        }
-        return rescatando;
-    }
-
     private void RegistrarSaltoHumano(MovimientoJugador jugador)
     {
         if (movimiento.Tipo != MovimientoJugador.Protagonista.Roca ||
-            humano.Tipo != MovimientoJugador.Protagonista.Chispa || !HumanoCercaDeMuro()) return;
-        if (Time.time - tiempoUltimoSaltoHumano > 2.5f) saltosHumanoCercaMuro = 0;
+            humano.Tipo != MovimientoJugador.Protagonista.Chispa ||
+            !HumanoCercaDeMuro())
+        {
+            return;
+        }
+
+        if (Time.time - tiempoUltimoSaltoHumano > 2.5f)
+        {
+            saltosHumanoCercaMuro = 0;
+        }
+
         tiempoUltimoSaltoHumano = Time.time;
         saltosHumanoCercaMuro++;
         if (saltosHumanoCercaMuro >= 2)
         {
-            apoyoHasta = Time.time + 2.5f;
+            apoyoHasta = Time.time + 3.5f;
             saltosHumanoCercaMuro = 0;
         }
     }
 
     private bool HumanoCercaDeMuro()
     {
-        SpriteRenderer sprite = humano.GetComponentInChildren<SpriteRenderer>();
+        SpriteRenderer sprite = humano.SpriteRendererReferencia;
         float sentido = sprite != null && sprite.flipX ? -1f : 1f;
-        return EsHitValido(Physics2D.Raycast(humano.transform.position + Vector3.up * 0.4f,
-            Vector2.right * sentido, 1.4f, paredMask));
+        return EsHitValido(Physics2D.Raycast(
+            humano.transform.position + Vector3.up * 0.4f,
+            Vector2.right * sentido,
+            1.4f,
+            paredMask));
     }
 
     private void ConfigurarColliderFisico()
@@ -638,8 +923,23 @@ private bool EstaEnElSuelo()
         if (box != null)
         {
             box.edgeRadius = 0f;
-            if (materialMovimiento != null) box.sharedMaterial = materialMovimiento;
+            if (materialMovimiento != null)
+            {
+                box.sharedMaterial = materialMovimiento;
+            }
         }
+    }
+
+    private bool EstaEnElSuelo()
+    {
+        if (checadorSuelo == null)
+        {
+            return false;
+        }
+
+        Vector2 centro = (Vector2)checadorSuelo.position + Vector2.down * 0.03f;
+        Collider2D hit = Physics2D.OverlapBox(centro, new Vector2(0.45f, 0.18f), 0f, sueloMask);
+        return EsHitValido(hit);
     }
 
     private bool EsHitValido(RaycastHit2D hit)
@@ -647,43 +947,66 @@ private bool EstaEnElSuelo()
         return hit.collider != null && !hit.collider.isTrigger && hit.collider.attachedRigidbody != rb;
     }
 
+    private bool EsHitValido(Collider2D hit)
+    {
+        return hit != null && !hit.isTrigger && hit.attachedRigidbody != rb;
+    }
+
     private void ActualizarAnimacion()
     {
         if (animator != null)
         {
             if (TieneParametro(SpeedParameter, AnimatorControllerParameterType.Float))
+            {
                 animator.SetFloat(SpeedParameter, Mathf.Abs(rb.linearVelocity.x));
+            }
+
             bool grounded = EstaEnElSuelo();
             if (TieneParametro(IsGroundedParameter, AnimatorControllerParameterType.Bool))
+            {
                 animator.SetBool(IsGroundedParameter, grounded);
+            }
+
             if (TieneParametro(EnSueloParameter, AnimatorControllerParameterType.Bool))
+            {
                 animator.SetBool(EnSueloParameter, grounded);
+            }
         }
+
         if (spriteRenderer != null)
         {
-            if (rb.linearVelocity.x < -0.05f) spriteRenderer.flipX = true;
-            else if (rb.linearVelocity.x > 0.05f) spriteRenderer.flipX = false;
+            if (rb.linearVelocity.x < -0.05f)
+            {
+                spriteRenderer.flipX = true;
+            }
+            else if (rb.linearVelocity.x > 0.05f)
+            {
+                spriteRenderer.flipX = false;
+            }
         }
     }
 
     private bool TieneParametro(int hash, AnimatorControllerParameterType tipo)
     {
-        if (animator == null) return false;
+        if (animator == null)
+        {
+            return false;
+        }
+
         foreach (AnimatorControllerParameter parametro in animator.parameters)
-            if (parametro.nameHash == hash && parametro.type == tipo) return true;
+        {
+            if (parametro.nameHash == hash && parametro.type == tipo)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
-
-private bool PuedeActuar()
+    private bool PuedeActuar()
     {
         return enabled && movimiento != null && humano != null && rb != null &&
                humano.gameObject.activeInHierarchy && !movimiento.ControlHumano;
-    }
-
-
-private bool EsHitValido(Collider2D hit)
-    {
-        return hit != null && !hit.isTrigger && hit.attachedRigidbody != rb;
     }
 }
