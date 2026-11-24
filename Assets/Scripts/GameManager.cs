@@ -10,6 +10,12 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Text textoEstrellas;
     [SerializeField] private int vidasMaximas = 3;
 
+    [Header("Audio SFX")]
+    [SerializeField] private AudioSource audioSourceSFX;
+    [SerializeField] private AudioClip sonidoEstrella;
+    [SerializeField] private AudioClip sonidoSalto;
+    [SerializeField] private AudioClip sonidoInterruptor;
+
     private static GameManager instancia;
     private static int vidasCompartidas = -1;
     private static bool transicionMuerte;
@@ -64,6 +70,12 @@ public class GameManager : MonoBehaviour
         }
 
         instancia = this;
+
+        if (audioSourceSFX == null)
+        {
+            audioSourceSFX = GetComponent<AudioSource>();
+        }
+
         vidasCompartidas = vidasMaximas;
 
         Estrellas = 0;
@@ -104,6 +116,24 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void ReproducirSFX(AudioClip clip, float volumen = 1f)
+    {
+        if (audioSourceSFX != null && clip != null)
+        {
+            audioSourceSFX.PlayOneShot(clip, volumen);
+        }
+    }
+
+    public void ReproducirSonidoSalto(AudioClip clipPersonalizado = null)
+    {
+        ReproducirSFX(clipPersonalizado != null ? clipPersonalizado : sonidoSalto);
+    }
+
+    public void ReproducirSonidoInterruptor(AudioClip clipPersonalizado = null)
+    {
+        ReproducirSFX(clipPersonalizado != null ? clipPersonalizado : sonidoInterruptor);
+    }
+
     public void RecogerEstrella()
     {
         if (GameOver || Estrellas >= estrellasNecesarias)
@@ -112,6 +142,7 @@ public class GameManager : MonoBehaviour
         }
 
         Estrellas++;
+        ReproducirSFX(sonidoEstrella);
         ActualizarTextoEstrellas();
     }
 

@@ -58,11 +58,9 @@ public class MovimientoJugador : MonoBehaviour
     public Animator AnimatorReferencia => animator;
     public SpriteRenderer SpriteRendererReferencia => spriteRenderer;
 
-
     public event Action<MovimientoJugador> InteraccionPresionada;
     public event Action<MovimientoJugador> HabilidadPresionada;
     public event Action<MovimientoJugador> SaltoEjecutado;
-
 
     private void Awake()
     {
@@ -97,7 +95,7 @@ public class MovimientoJugador : MonoBehaviour
             Key habilidad = protagonista == Protagonista.Chispa ? Key.LeftShift : Key.RightShift;
 
             entradaHorizontal = (teclado[derecha].isPressed ? 1f : 0f)
-                                - (teclado[izquierda].isPressed ? 1f : 0f);
+                - (teclado[izquierda].isPressed ? 1f : 0f);
             solicitarSalto = teclado[salto].wasPressedThisFrame;
 
             if (teclado[interactuar].wasPressedThisFrame)
@@ -134,8 +132,13 @@ public class MovimientoJugador : MonoBehaviour
         if (solicitarSalto && enElSuelo)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, fuerzaSalto);
-            SaltoEjecutado?.Invoke(this);
 
+            if (GameManager.Instancia != null)
+            {
+                GameManager.Instancia.ReproducirSonidoSalto();
+            }
+
+            SaltoEjecutado?.Invoke(this);
         }
 
         ActualizarParametrosAnimator();
@@ -151,7 +154,7 @@ public class MovimientoJugador : MonoBehaviour
         habilidadIASolicitada = false;
     }
 
-public void EstablecerEntradaIA(float horizontal, bool saltar)
+    public void EstablecerEntradaIA(float horizontal, bool saltar)
     {
         if (!controlHumano)
         {
@@ -200,7 +203,7 @@ public void EstablecerEntradaIA(float horizontal, bool saltar)
         animator.SetBool(IsGroundedParameter, enElSuelo);
     }
 
-private bool DetectarSuelo()
+    private bool DetectarSuelo()
     {
         if (checadorSuelo == null)
         {
@@ -222,7 +225,6 @@ private bool DetectarSuelo()
 
         return false;
     }
-
 
     private bool DetectarMuroEnDireccion(float direccion)
     {
@@ -255,7 +257,6 @@ private bool DetectarSuelo()
 
         return cantidad > 0;
     }
-
 
     private void FixedUpdate()
     {

@@ -23,6 +23,10 @@ public class MainMenuController : MonoBehaviour
     public Sprite sliderRelleno;
     public Sprite sliderPerilla;
 
+    [Header("Audio")]
+    [SerializeField] private AudioSource musicaAudioSource;
+    [SerializeField] private AudioSource[] sfxAudioSources;
+
     private GameObject panelPrincipal;
     private GameObject panelModo;
     [SerializeField] private GameObject panelSeleccionNivel;
@@ -39,6 +43,7 @@ public class MainMenuController : MonoBehaviour
     private void Start()
     {
         Mostrar(panelPrincipal);
+        AplicarVolumenEnEscena(AudioPreferences.MusicVolume, AudioPreferences.SfxVolume);
     }
 
     private void CrearInterfaz()
@@ -76,7 +81,9 @@ public class MainMenuController : MonoBehaviour
         panelSeleccionNivel.SetActive(false);
         panelAjustes.SetActive(false);
         panelAcercaDe.SetActive(false);
+
         AudioPreferences.ApplyVolumes();
+        AplicarVolumenEnEscena(AudioPreferences.MusicVolume, AudioPreferences.SfxVolume);
     }
 
     private Canvas CrearCanvas()
@@ -249,16 +256,64 @@ public class MainMenuController : MonoBehaviour
     {
         MenuUIFactory.CreateText(parent, "Titulo", "AJUSTES", 48, Color.white,
             new Vector2(800f, 90f), new Vector2(0f, 270f));
+
+        float initialMusic = Mathf.Clamp01(AudioPreferences.MusicVolume);
+        float initialSfx = Mathf.Clamp01(AudioPreferences.SfxVolume);
+
         MenuUIFactory.CreateSlider(parent, "SliderMusica", "MÚSICA", sliderFondo, sliderRelleno,
-            sliderPerilla, AudioPreferences.MusicVolume, AudioPreferences.SetMusicVolume,
+            sliderPerilla, initialMusic, OnMusicSliderChanged,
             new Vector2(0f, 95f));
-        MenuUIFactory.CreateSlider(parent, "SliderSonidos", "SONIDOS", sliderFondo, sliderRelleno,
-            sliderPerilla, AudioPreferences.SfxVolume, AudioPreferences.SetSfxVolume,
+
+        MenuUIFactory.CreateSlider(parent, "SliderSonidos", "SONIDO", sliderFondo, sliderRelleno,
+            sliderPerilla, initialSfx, OnSfxSliderChanged,
             new Vector2(0f, -65f));
+
+        AplicarVolumenEnEscena(initialMusic, initialSfx);
+
         if (showBack)
         {
             MenuUIFactory.CreateButton(parent, "Regresar", "REGRESAR", botonRojo,
                 new Vector2(340f, 90f), new Vector2(0f, -270f), () => Mostrar(panelPrincipal), 32);
+        }
+    }
+
+    private void OnMusicSliderChanged(float value)
+    {
+        float clamped = Mathf.Clamp01(value);
+        AudioPreferences.SetMusicVolume(clamped);
+        AudioPreferences.ApplyVolumes();
+        PlayerPrefs.Save();
+        AplicarVolumenEnEscena(clamped, AudioPreferences.SfxVolume);
+    }
+
+    private void OnSfxSliderChanged(float value)
+    {
+        float clamped = Mathf.Clamp01(value);
+        AudioPreferences.SetSfxVolume(clamped);
+        AudioPreferences.ApplyVolumes();
+        PlayerPrefs.Save();
+        AplicarVolumenEnEscena(AudioPreferences.MusicVolume, clamped);
+    }
+
+    private void AplicarVolumenEnEscena(float musicVol, float sfxVol)
+    {
+        float clampedMusic = Mathf.Clamp01(musicVol);
+        float clampedSfx = Mathf.Clamp01(sfxVol);
+
+        if (musicaAudioSource != null)
+        {
+            musicaAudioSource.volume = clampedMusic;
+        }
+
+        if (sfxAudioSources != null)
+        {
+            for (int i = 0; i < sfxAudioSources.Length; i++)
+            {
+                if (sfxAudioSources[i] != null)
+                {
+                    sfxAudioSources[i].volume = clampedSfx;
+                }
+            }
         }
     }
 
